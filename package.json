@@ -1,0 +1,29 @@
+{
+  "name": "lexsearch",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LexSearch — sistema de IA personal para un abogado: biblioteca consultable (RAG) y asistente de redacción.",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "setup": "npm run db:up && npm run db:migrate",
+    "db:up": "docker compose up -d --wait db",
+    "db:down": "docker compose down",
+    "db:migrate": "npm run db:deploy -w backend",
+    "models:download": "npm run models:download -w backend",
+    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "build": "npm run build -w backend && npm run build -w frontend",
+    "test": "npm run test -w backend",
+    "test:unit": "npm run test:unit -w backend",
+    "lint": "npm run lint -w backend && npm run lint -w frontend",
+    "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

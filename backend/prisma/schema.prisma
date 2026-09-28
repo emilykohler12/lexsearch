@@ -1,0 +1,111 @@
+// Modelo de datos de LexSearch.
+// Fase 1: biblioteca de documentos + fragmentos (RAG) + registro de interacciones con la IA.
+// Las próximas fases agregan Cliente, Expediente, Actuación, Plazo y Notificación.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum DocumentCategory {
+  LEGISLACION // leyes, códigos, decretos, resoluciones
+  JURISPRUDENCIA // fallos y sentencias
+  DOCTRINA // artículos, libros, comentarios
+  MODELO // modelos propios de contratos y escritos
+  ESCRITO // escritos presentados en expedientes
+  OTRO
+}
+
+enum DocumentStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+model Document {
+  id             String           @id @default(uuid()) @db.Uuid
+  title          String
+  originalName   String           @map("original_name")
+  mimeType       String           @map("mime_type")
+  sizeBytes      Int              @map("size_bytes")
+  sha256         String           @unique
+  /// Ruta relativa a STORAGE_DIR (nunca el nombre original del archivo).
+  storagePath    String           @map("storage_path")
+  category       DocumentCategory @default(OTRO)
+  status         DocumentStatus   @default(PENDING)
+  errorMessage   String?          @map("error_message")
+  pageCount      Int?             @map("page_count")
+  chunkCount     Int              @default(0) @map("chunk_count")
+  charCount      Int?             @map("char_count")
+  embeddingModel String?          @map("embedding_model")
+  processedAt    DateTime?        @map("processed_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  chunks         DocumentChunk[]
+
+  @@index([category])
+  @@index([status])
+  @@map("documents")
+}
+
+/// Fragmento de texto de un documento con su embedding (lo usa el RAG).
+/// Las filas se insertan con SQL crudo porque Prisma no maneja el tipo vector.
+///
+/// Parte de esta tabla la crea SQL escrito a mano en la migración inicial (columna
+/// generada, índice HNSW). Los atributos de abajo existen para que `prisma migrate dev`
+/// los reconozca y no intente borrarlos en migraciones futuras: no los quites.
+model DocumentChunk {
+  id           String                     @id @default(uuid()) @db.Uuid
+  documentId   String                     @map("document_id") @db.Uuid
+  /// Posición del fragmento dentro del documento (0, 1, 2...).
+  ordinal      Int
+  content      String
+  pageStart    Int?                       @map("page_start")
+  pageEnd      Int?                       @map("page_end")
+  charCount    Int                        @map("char_count")
+  /// Dimensión atada al modelo de embeddings (multilingual-e5-base = 768).
+  embedding    Unsupported("vector(768)")?
+  /// Columna GENERATED de Postgres para la búsqueda por palabras (español, sin acentos).
+  searchVector Unsupported("tsvector")?   @default(dbgenerated("to_tsvector('es_unaccent'::regconfig, content)")) @map("search_vector")
+  createdAt    DateTime                   @default(now()) @map("created_at")
+  document     Document                   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, ordinal])
+  /// Índice HNSW (vector_cosine_ops) creado en la migración inicial.
+  @@index([embedding], map: "document_chunks_embedding_hnsw_idx")
+  @@index([searchVector], type: Gin)
+  @@map("document_chunks")
+}
+
+enum InteractionStatus {
+  SUCCESS
+  FAILED
+}
+
+/// Historial de interacciones con los módulos de IA: qué se preguntó, qué contexto
+/// recibió el modelo y qué respondió. Sirve para depurar prompts y como historial.
+model AgentInteraction {
+  id            String            @id @default(uuid()) @db.Uuid
+  module        String
+  input         Json
+  context       Json?
+  output        Json?
+  model         String?
+  promptVersion String?           @map("prompt_version")
+  inputTokens   Int?              @map("input_tokens")
+  outputTokens  Int?              @map("output_tokens")
+  durationMs    Int?              @map("duration_ms")
+  status        InteractionStatus
+  errorMessage  String?           @map("error_message")
+  createdAt     DateTime          @default(now()) @map("created_at")
+
+  @@index([module, createdAt])
+  @@map("agent_interactions")
+}

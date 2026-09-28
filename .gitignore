@@ -1,0 +1,24 @@
+# Dependencias y builds
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Secretos: nunca commitear credenciales (ver .env.example)
+.env
+.env.*
+!.env.example
+
+# Datos locales del sistema (documentos subidos y modelos descargados)
+backend/storage/
+backend/.cache/
+
+# Cliente de Prisma generado
+backend/src/generated/
+
+# Varios
+*.log
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json

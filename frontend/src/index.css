@@ -1,0 +1,88 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --font-serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
+
+  --color-paper: #f7f5f0;
+  --color-line: #e5dfd3;
+  --color-ink: #1f2430;
+  --color-muted: #6b6558;
+
+  --color-navy-950: #0f1729;
+  --color-navy-900: #16213a;
+  --color-navy-800: #1f2d4d;
+  --color-navy-700: #2c3d63;
+
+  --color-brass-50: #fbf6ea;
+  --color-brass-100: #f5e8c7;
+  --color-brass-500: #b8862b;
+  --color-brass-600: #9a6e1f;
+  --color-brass-700: #7a5618;
+
+  /* Highlighter used for exact quotes in the sources */
+  --color-highlight: #fbeaa6;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-serif;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brass-500;
+  }
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply btn bg-navy-900 text-white hover:bg-navy-800;
+}
+@utility btn-secondary {
+  @apply btn border border-line bg-white text-ink hover:bg-paper;
+}
+@utility btn-ghost {
+  @apply btn px-2 py-1 text-muted hover:bg-black/5 hover:text-ink;
+}
+/* Square icon button: 40px touch target on phones, 32px on larger screens. */
+@utility btn-icon {
+  @apply btn size-10 p-0 text-muted hover:bg-black/5 hover:text-ink sm:size-8;
+}
+@utility card {
+  @apply rounded-xl border border-line bg-white shadow-[0_1px_2px_rgba(31,36,48,0.04)];
+}
+/* 16px on phones: smaller text makes iOS zoom in when the field gets focus. */
+@utility input {
+  @apply w-full rounded-lg border border-line bg-white px-3 py-2 text-base text-ink placeholder:text-muted/70 focus:border-brass-500 focus:ring-2 focus:ring-brass-100 focus:outline-none sm:text-sm;
+}
+@utility label {
+  @apply mb-1 block text-xs font-semibold tracking-wide text-muted uppercase;
+}
+
+mark.quote {
+  @apply rounded-sm bg-highlight px-0.5 text-ink;
+}
+mark.quote-active {
+  @apply rounded-sm bg-brass-500/35 px-0.5 text-ink ring-1 ring-brass-500;
+}
+
+@keyframes flash {
+  from {
+    box-shadow: 0 0 0 3px var(--color-brass-500);
+  }
+  to {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+.flash {
+  animation: flash 1.6s ease-out;
+}

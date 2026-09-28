@@ -1,0 +1,26 @@
+# Entorno de desarrollo local: PostgreSQL 17 con la extensión pgvector.
+# El puerto se publica SOLO en 127.0.0.1 (no queda expuesto a la red local).
+name: lexsearch
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: lexsearch-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lexsearch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lexsearch_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-lexsearch}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - lexsearch-pgdata:/var/lib/postgresql/data
+      - ./docker/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  lexsearch-pgdata:

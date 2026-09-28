@@ -1,0 +1,56 @@
+import type { DocumentCategory, DocumentStatus } from '../api/types';
+
+export const CATEGORY_LABELS: Record<DocumentCategory, string> = {
+  LEGISLACION: 'Legislación',
+  JURISPRUDENCIA: 'Jurisprudencia',
+  DOCTRINA: 'Doctrina',
+  MODELO: 'Modelo propio',
+  ESCRITO: 'Escrito',
+  OTRO: 'Otro',
+};
+
+export const CATEGORY_HINTS: Record<DocumentCategory, string> = {
+  LEGISLACION: 'Leyes, códigos, decretos, resoluciones',
+  JURISPRUDENCIA: 'Fallos y sentencias',
+  DOCTRINA: 'Artículos, libros, comentarios',
+  MODELO: 'Tus modelos de contratos y escritos',
+  ESCRITO: 'Escritos presentados en expedientes',
+  OTRO: 'Cualquier otro documento',
+};
+
+export const CATEGORIES = Object.keys(CATEGORY_LABELS) as DocumentCategory[];
+
+export const STATUS_LABELS: Record<DocumentStatus, string> = {
+  PENDING: 'En cola',
+  PROCESSING: 'Procesando',
+  READY: 'Listo',
+  FAILED: 'Error',
+};
+
+const dateFormatter = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeStyle: 'short' });
+const numberFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
+
+export function formatDate(iso: string): string {
+  return dateFormatter.format(new Date(iso));
+}
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${numberFormatter.format(bytes / 1024)} KB`;
+  return `${numberFormatter.format(bytes / (1024 * 1024))} MB`;
+}
+
+/** plural(1, 'fragmento', 'fragmentos') -> "1 fragmento" */
+export function plural(count: number, singular: string, pluralForm: string): string {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
+}
+
+export function formatSeconds(ms: number): string {
+  return `${numberFormatter.format(ms / 1000)} s`;
+}
+
+export function formatPages(pageStart: number | null, pageEnd: number | null): string | null {
+  if (pageStart === null) return null;
+  if (pageEnd === null || pageEnd === pageStart) return `pág. ${pageStart}`;
+  return `págs. ${pageStart}–${pageEnd}`;
+}
