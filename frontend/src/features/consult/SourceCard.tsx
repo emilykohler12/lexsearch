@@ -1,4 +1,5 @@
 import { ExternalLink } from 'lucide-react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { api } from '../../api/client';
 import type { DocumentCategory } from '../../api/types';
 import { CategoryBadge } from '../../components/ui';
@@ -23,15 +24,34 @@ export function SourceCard({
   quotes = [],
   activeQuote = null,
   dimmed = false,
+  collapsible = false,
 }: {
   number: number;
   source: SourceLike;
   quotes?: Quote[];
   activeQuote?: Quote | null;
   dimmed?: boolean;
+  /** Show at most 7 lines of the fragment, with a "Ver más" toggle. */
+  collapsible?: boolean;
 }) {
   const pages = formatPages(source.pageStart, source.pageEnd);
   const segments = highlightSegments(source.content, quotes);
+  const textRef = useRef<HTMLQuoteElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const clamped = collapsible && !expanded;
+
+  // The toggle only appears when the text really is longer than 7 lines at the current width:
+  // measured right after layout, and again whenever the card changes size.
+  useLayoutEffect(() => {
+    const element = textRef.current;
+    if (!element || !clamped) return;
+    const measure = () => setOverflows(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [clamped, source.content]);
 
   return (
     <div id={`source-${number}`} className={`card scroll-mt-32 p-4 transition-opacity md:scroll-mt-6 ${dimmed ? 'opacity-75' : ''}`}>
@@ -59,7 +79,12 @@ export function SourceCard({
           Ver documento
         </a>
       </div>
-      <blockquote className="mt-3 border-l-2 border-line pl-3 text-sm leading-relaxed break-words whitespace-pre-wrap text-ink/90">
+      <blockquote
+        ref={textRef}
+        className={`mt-3 border-l-2 border-line pl-3 text-sm leading-relaxed break-words whitespace-pre-wrap text-ink/90 ${
+          clamped ? 'line-clamp-7' : ''
+        }`}
+      >
         {segments.map((segment, i) =>
           segment.quote ? (
             <mark key={i} className={segment.quote === activeQuote ? 'quote-active' : 'quote'}>
@@ -70,6 +95,16 @@ export function SourceCard({
           ),
         )}
       </blockquote>
+      {collapsible && (overflows || expanded) && (
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          aria-expanded={expanded}
+          className="mt-2 min-h-8 pl-3 text-xs font-medium text-brass-700 hover:underline"
+        >
+          {expanded ? 'Ver menos' : 'Ver más'}
+        </button>
+      )}
     </div>
   );
 }

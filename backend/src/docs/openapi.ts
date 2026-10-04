@@ -57,7 +57,7 @@ export function buildOpenApiDocument() {
         },
         post: {
           tags: ['Biblioteca'],
-          summary: 'Subir uno o más documentos (PDF, DOCX, TXT, MD)',
+          summary: 'Subir uno o más documentos (PDF, DOCX, TXT, MD, o imágenes JPG/PNG/WEBP/TIFF leídas con OCR)',
           description: 'Responde enseguida; la indexación sigue en segundo plano (status PENDING → PROCESSING → READY/FAILED).',
           requestBody: {
             required: true,

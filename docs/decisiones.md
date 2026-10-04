@@ -61,3 +61,11 @@ Decisión tomada en principio: **VPS chico + Docker Compose, sin exponerlo a int
 ## D12 · Anonimización (a implementar en la Fase 10)
 
 Anonimización **parcial y reversible** de identificadores directos (nombre, DNI, teléfono, email, dirección) antes de enviar texto al LLM: se reemplazan por tokens (`[CLIENTE_1]`), el mapeo queda solo en la base local y se revierte en la respuesta. No se anonimizan fechas, montos ni hechos, porque son necesarios para que la respuesta sirva; es una mitigación, no una garantía absoluta. Se vuelve obligatoria cuando el sistema procese datos reales de clientes fuera del entorno controlado.
+
+## D13 · OCR local con Tesseract
+
+- **Por qué local:** las fotos y escaneos suelen ser los documentos más sensibles (cédulas, DNI, recibos). Tesseract (compilado a WebAssembly con `tesseract.js`) corre en la computadora: ninguna imagen sale de ahí. Solo se descargan una vez los datos del idioma español (~15 MB).
+- **Cuándo se usa:** en cada página de PDF con menos de 25 caracteres de texto (escaneos, o páginas escaneadas sueltas dentro de un PDF digital) y en imágenes JPG, PNG, WEBP y TIFF (los TIFF de varias páginas se leen página por página). Las páginas de PDF con texto real no pasan por OCR.
+- **Cómo:** la página del PDF se dibuja como imagen al doble de tamaño (`pdf-parse`); las fotos se corrigen con `sharp` (rotación según el celular, escala de grises, contraste y tamaño) antes de leerlas. En pruebas, una cédula escaneada se leyó con 94 % de confianza en menos de medio segundo por página.
+- **Transparencia:** cada documento guarda cuántas páginas se leyeron con OCR (`ocr_page_count`) y la biblioteca lo marca como «Leído con OCR», porque el texto puede tener errores de lectura.
+- **Fuera de alcance por ahora:** las fotos HEIC del iPhone (se pide mandarlas como JPG) y la escritura manuscrita.

@@ -84,6 +84,14 @@ export function DocumentsTable({ documents }: { documents: LibraryDocument[] }) 
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
                     <CategoryBadge category={document.category} />
                     <StatusBadge status={document.status} />
+                    {document.ocrPageCount > 0 && (
+                      <span
+                        className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200"
+                        title="Texto reconocido con OCR (escaneo o foto): puede tener errores de lectura. Verificá las citas contra el original."
+                      >
+                        Leído con OCR
+                      </span>
+                    )}
                     {document.status === 'READY' && (
                       <span>
                         {document.pageCount !== null && `${plural(document.pageCount, 'pág.', 'págs.')} · `}

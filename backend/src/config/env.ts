@@ -52,3 +52,5 @@ export const env = loadEnv();
 
 export const storageDir = resolveFromBackend(env.STORAGE_DIR);
 export const modelsCacheDir = resolveFromBackend(env.MODELS_CACHE_DIR);
+/** Spanish language data for OCR, downloaded once. */
+export const ocrCacheDir = path.join(modelsCacheDir, 'tesseract');

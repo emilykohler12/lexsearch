@@ -1,5 +1,5 @@
-import { Search, Sparkles } from 'lucide-react';
-import { useId, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { Search, Sparkles, Trash2 } from 'lucide-react';
+import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Link } from 'react-router';
 import { useAsk, useDocuments, useHealth, useSearch } from '../api/hooks';
 import type { DocumentCategory } from '../api/types';
@@ -18,6 +18,7 @@ export function ConsultPage() {
   const [question, setQuestion] = useState('');
   const [categories, setCategories] = useState<DocumentCategory[]>([]);
   const questionId = useId();
+  const questionRef = useRef<HTMLTextAreaElement>(null);
   const ask = useAsk();
   const search = useSearch();
   const { data: health } = useHealth();
@@ -28,6 +29,16 @@ export function ConsultPage() {
   const busy = ask.isPending || search.isPending;
   const canSubmit = question.trim().length >= 3 && !busy;
   const filters = categories.length > 0 ? { categories } : {};
+  const hasResults = Boolean(ask.data || search.data || ask.isError || search.isError);
+
+  /** Clears the question, the filters and the results, ready for a new search. */
+  const clearSearch = () => {
+    ask.reset();
+    search.reset();
+    setQuestion('');
+    setCategories([]);
+    questionRef.current?.focus();
+  };
 
   const runAsk = () => {
     search.reset();
@@ -58,7 +69,7 @@ export function ConsultPage() {
     <>
       <PageHeader
         title="Consultar"
-        description="Preguntá en lenguaje natural. LexSearch busca en tus propios documentos y responde citando el fragmento exacto de cada fuente."
+        description="LexSearch busca en tus propios documentos y responde citando el fragmento exacto de cada fuente."
       />
 
       <div className="space-y-4">
@@ -85,6 +96,7 @@ export function ConsultPage() {
           </label>
           <textarea
             id={questionId}
+            ref={questionRef}
             className="input min-h-28 resize-y leading-relaxed sm:text-[15px]"
             placeholder="Ej.: ¿Qué requisitos tiene la carta documento para intimar el pago de haberes adeudados?"
             value={question}
@@ -113,7 +125,6 @@ export function ConsultPage() {
                   </button>
                 );
               })}
-              {categories.length === 0 && <span className="text-xs text-muted">(todos)</span>}
             </div>
           </fieldset>
 
@@ -126,7 +137,16 @@ export function ConsultPage() {
               <Search className="size-4" aria-hidden />
               Solo buscar
             </button>
-            <span className="hidden text-xs text-muted sm:inline">Ctrl + Enter para enviar</span>
+            {hasResults && !busy && (
+              <button
+                type="button"
+                className="btn-ghost min-h-11 hover:text-red-700 sm:ml-auto sm:min-h-0"
+                onClick={clearSearch}
+              >
+                <Trash2 className="size-4" aria-hidden />
+                Eliminar búsqueda
+              </button>
+            )}
           </div>
         </form>
 
@@ -179,7 +199,7 @@ export function ConsultPage() {
             )}
             <div className="grid gap-3 xl:grid-cols-2">
               {search.data.map((hit, i) => (
-                <SourceCard key={hit.chunkId} number={i + 1} source={hit} />
+                <SourceCard key={hit.chunkId} number={i + 1} source={hit} collapsible />
               ))}
             </div>
           </section>

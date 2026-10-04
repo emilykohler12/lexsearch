@@ -1,11 +1,13 @@
 /**
- * Downloads the local embedding model once (~280 MB) and checks that it works.
+ * Downloads the local models once and checks that they work: the embedding model
+ * (~280 MB) and the Spanish data for OCR (~15 MB).
  * Usage: npm run models:download
  */
-import { env, modelsCacheDir } from '../src/config/env.js';
+import { env, modelsCacheDir, ocrCacheDir } from '../src/config/env.js';
 import { logger } from '../src/lib/logger.js';
 import { EMBEDDING_DIMENSIONS } from '../src/modules/embeddings/embedding-provider.js';
 import { LocalEmbeddingProvider } from '../src/modules/embeddings/local-embedding-provider.js';
+import { TesseractOcrEngine } from '../src/modules/ocr/tesseract-ocr-engine.js';
 
 const provider = new LocalEmbeddingProvider({
   modelName: env.EMBEDDING_MODEL,
@@ -28,3 +30,9 @@ const cosine = (a: number[], b: number[]) => a.reduce((sum, value, i) => sum + v
 console.log(`Modelo: ${env.EMBEDDING_MODEL} (${query.length} dimensiones), listo en ${Date.now() - startedAt} ms`);
 console.log(`Similitud con texto relacionado:    ${cosine(query, related!).toFixed(3)}`);
 console.log(`Similitud con texto no relacionado: ${cosine(query, unrelated!).toFixed(3)}`);
+
+const ocr = new TesseractOcrEngine({ language: 'spa', cachePath: ocrCacheDir, logger });
+const ocrStartedAt = Date.now();
+await ocr.warmUp();
+await ocr.close();
+console.log(`OCR en español listo en ${Date.now() - ocrStartedAt} ms`);

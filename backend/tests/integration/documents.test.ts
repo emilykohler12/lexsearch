@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { createTestApp, makePdf } from '../helpers/test-app.js';
+import { createTestApp, makeImage, makePdf, makeScannedPdf } from '../helpers/test-app.js';
 
 const ctx = await createTestApp();
 afterAll(() => ctx.close());
@@ -72,12 +72,61 @@ describe('documents API', () => {
     expect(detail.body.document).toMatchObject({ status: 'READY', pageCount: null });
   });
 
-  it('marks a PDF without text (scanned) as failed with an explanation', async () => {
-    const res = await uploadPdf('escaneado.pdf', ['', '']);
+  it('reads scanned PDFs with OCR, page by page', async () => {
+    ctx.ocr.text = 'CÉDULA DE NOTIFICACIÓN. Córrase traslado de la demanda por el plazo de quince días.';
+    const res = await request(ctx.app)
+      .post('/api/documents')
+      .attach('files', await makeScannedPdf(2), 'cedula escaneada.pdf');
+    await ctx.queue.idle();
+
+    const detail = await request(ctx.app).get(`/api/documents/${res.body.results[0].document.id}`);
+    expect(detail.body.document).toMatchObject({ status: 'READY', pageCount: 2, ocrPageCount: 2 });
+    expect(ctx.ocr.calls).toBe(2);
+    const chunks = await ctx.db.documentChunk.findMany({ where: { documentId: res.body.results[0].document.id } });
+    expect(chunks.map((c) => c.content).join(' ')).toContain('plazo de quince días');
+    expect(chunks[0]).toMatchObject({ pageStart: 1 });
+  });
+
+  it('reads photos with OCR', async () => {
+    ctx.ocr.text = 'Contrato de locación: el alquiler se paga del 1 al 10 de cada mes.';
+    const res = await request(ctx.app)
+      .post('/api/documents')
+      .field('category', 'MODELO')
+      .attach('files', await makeImage('jpeg'), 'foto contrato.jpg');
+    expect(res.body.results[0]).toMatchObject({ status: 'created' });
+    await ctx.queue.idle();
+
+    const detail = await request(ctx.app).get(`/api/documents/${res.body.results[0].document.id}`);
+    expect(detail.body.document).toMatchObject({
+      status: 'READY',
+      mimeType: 'image/jpeg',
+      pageCount: null,
+      ocrPageCount: 1,
+    });
+    const search = await request(ctx.app).post('/api/rag/search').send({ query: 'alquiler cada mes' });
+    expect(search.body.results[0].content).toContain('del 1 al 10 de cada mes');
+  });
+
+  it('only uses OCR on pages without a text layer', async () => {
+    const res = await uploadPdf();
+    await ctx.queue.idle();
+    const detail = await request(ctx.app).get(`/api/documents/${res.body.results[0].document.id}`);
+    expect(detail.body.document).toMatchObject({ status: 'READY', ocrPageCount: 0 });
+    expect(ctx.ocr.calls).toBe(0);
+  });
+
+  it('explains when OCR cannot read anything', async () => {
+    ctx.ocr.text = '';
+    const res = await request(ctx.app).post('/api/documents').attach('files', await makeScannedPdf(1), 'ilegible.pdf');
     await ctx.queue.idle();
     const detail = await request(ctx.app).get(`/api/documents/${res.body.results[0].document.id}`);
     expect(detail.body.document.status).toBe('FAILED');
-    expect(detail.body.document.errorMessage).toMatch(/escaneado/);
+    expect(detail.body.document.errorMessage).toMatch(/No se pudo reconocer texto/);
+  });
+
+  it('explains how to send iPhone HEIC photos', async () => {
+    const res = await request(ctx.app).post('/api/documents').attach('files', Buffer.from('x'), 'IMG_0001.HEIC');
+    expect(res.body.results[0]).toMatchObject({ status: 'rejected', message: expect.stringMatching(/HEIC.*JPG/) });
   });
 
   it('serves the original file inline', async () => {

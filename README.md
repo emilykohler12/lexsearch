@@ -24,7 +24,8 @@ Las decisiones técnicas y su justificación están en [docs/decisiones.md](docs
 
 ## Qué hace hoy
 
-- **Biblioteca:** subís PDF (con texto), Word (.docx), .txt o .md, eligiendo el tipo (legislación, jurisprudencia, doctrina, modelo propio, escrito, otro). Cada documento se procesa en segundo plano: extracción de texto por página, fragmentación respetando artículos y cláusulas, e indexado. Detecta duplicados por contenido y avisa si un PDF está escaneado (sin texto).
+- **Biblioteca:** subís PDF, Word (.docx), .txt o .md, o fotos y escaneos (JPG, PNG, WEBP, TIFF), eligiendo el tipo (legislación, jurisprudencia, doctrina, modelo propio, escrito, otro). Cada documento se procesa en segundo plano: extracción de texto por página, fragmentación respetando artículos y cláusulas, e indexado. Detecta duplicados por contenido.
+- **OCR (reconocimiento de texto):** los PDF escaneados (o sus páginas escaneadas) y las fotos se leen automáticamente, en tu computadora: las imágenes no se envían a ningún servicio. Los documentos leídos así quedan marcados como «Leído con OCR», porque el texto puede tener errores de lectura.
 - **Búsqueda híbrida:** combina búsqueda *por significado* (vectores) con búsqueda *por palabras exactas* en español sin acentos (útil para "art. 245" o "Ley 20.744"). Filtra por tipo de documento.
 - **Respuestas con IA (Gemini):** redacta la respuesta usando solo los fragmentos recuperados y marca cada afirmación con su fuente. Antes de mostrar una cita, el servidor verifica que la frase exista textualmente en el fragmento. Al hacer clic en una cita ves ese texto resaltado y podés abrir el PDF original en esa página.
 - **Historial:** cada consulta queda registrada con su respuesta, las fuentes, el modelo y la versión del prompt.
@@ -60,7 +61,7 @@ Todos los comandos se ejecutan en la carpeta del proyecto (`C:\Users\Emily Kohle
    npm run setup
    ```
 
-5. **Descargar el modelo de búsqueda** (~280 MB, una sola vez; si ya está descargado, termina enseguida):
+5. **Descargar los modelos locales** (búsqueda ~280 MB y OCR en español ~15 MB, una sola vez; si ya están descargados, termina enseguida):
 
    ```bash
    npm run models:download
@@ -167,6 +168,10 @@ Cada módulo del backend sigue la misma separación de capas: `routes → contro
 
 **"El puerto 5180 / 4000 / 5433 está en uso".** Otro programa lo está usando. Cerralo, o cambiá el puerto en `.env` (`PORT`, `POSTGRES_PORT` + `DATABASE_URL`) y en `frontend/vite.config.ts`.
 
-**Un PDF queda en "Error: parece ser un documento escaneado".** El PDF es una imagen sin capa de texto. El reconocimiento de texto (OCR) se agrega más adelante; mientras tanto, usá la versión digital del documento.
+**Un escaneo o una foto queda en "Error: no se pudo reconocer texto".** El OCR no pudo leerlo: suele pasar con fotos borrosas, torcidas o con poca luz. Volvé a sacar la foto (derecha, con buena luz y de cerca) o escaneá el documento. Si tenés la versión digital, siempre es mejor subir esa.
+
+**Una foto del iPhone (HEIC) es rechazada.** El formato HEIC no es compatible: mandala como JPG (en el iPhone: *Ajustes → Cámara → Formatos → Más compatible*).
+
+**"No se pudo usar el reconocimiento de texto (OCR)".** La primera vez el OCR descarga los datos del idioma español; hace falta conexión a internet. Corré `npm run models:download` y después usá «Reprocesar» en el documento.
 
 **"Motor de búsqueda: error al cargar".** La primera vez el modelo se descarga de Hugging Face; hace falta conexión a internet. Corré `npm run models:download` para ver el detalle.

@@ -47,6 +47,7 @@ export function toDocumentDto(document: Document) {
     pageCount: document.pageCount,
     chunkCount: document.chunkCount,
     charCount: document.charCount,
+    ocrPageCount: document.ocrPageCount,
     processedAt: document.processedAt,
     createdAt: document.createdAt,
     updatedAt: document.updatedAt,

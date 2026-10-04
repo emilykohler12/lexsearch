@@ -9,15 +9,6 @@ export const CATEGORY_LABELS: Record<DocumentCategory, string> = {
   OTRO: 'Otro',
 };
 
-export const CATEGORY_HINTS: Record<DocumentCategory, string> = {
-  LEGISLACION: 'Leyes, códigos, decretos, resoluciones',
-  JURISPRUDENCIA: 'Fallos y sentencias',
-  DOCTRINA: 'Artículos, libros, comentarios',
-  MODELO: 'Tus modelos de contratos y escritos',
-  ESCRITO: 'Escritos presentados en expedientes',
-  OTRO: 'Cualquier otro documento',
-};
-
 export const CATEGORIES = Object.keys(CATEGORY_LABELS) as DocumentCategory[];
 
 export const STATUS_LABELS: Record<DocumentStatus, string> = {

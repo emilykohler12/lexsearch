@@ -44,6 +44,8 @@ model Document {
   pageCount      Int?             @map("page_count")
   chunkCount     Int              @default(0) @map("chunk_count")
   charCount      Int?             @map("char_count")
+  /// Páginas leídas con OCR (escaneos y fotos): su texto puede tener errores de lectura.
+  ocrPageCount   Int              @default(0) @map("ocr_page_count")
   embeddingModel String?          @map("embedding_model")
   processedAt    DateTime?        @map("processed_at")
   createdAt      DateTime         @default(now()) @map("created_at")

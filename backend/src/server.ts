@@ -1,11 +1,12 @@
 import { createApp } from './app.js';
-import { env, modelsCacheDir, storageDir } from './config/env.js';
+import { env, modelsCacheDir, ocrCacheDir, storageDir } from './config/env.js';
 import { FileStorage } from './lib/file-storage.js';
 import { logger } from './lib/logger.js';
 import { createPrismaClient } from './lib/prisma.js';
 import { EMBEDDING_DIMENSIONS } from './modules/embeddings/embedding-provider.js';
 import { LocalEmbeddingProvider } from './modules/embeddings/local-embedding-provider.js';
 import { GeminiLlmProvider } from './modules/llm/gemini-llm-provider.js';
+import { TesseractOcrEngine } from './modules/ocr/tesseract-ocr-engine.js';
 
 const db = createPrismaClient(env.DATABASE_URL);
 const storage = new FileStorage(storageDir);
@@ -17,6 +18,8 @@ const embeddings = new LocalEmbeddingProvider({
   cacheDir: modelsCacheDir,
   logger,
 });
+
+const ocr = new TesseractOcrEngine({ language: 'spa', cachePath: ocrCacheDir, logger });
 
 const llm = env.GEMINI_API_KEY
   ? new GeminiLlmProvider({
@@ -32,6 +35,7 @@ const { app, queue, documentsService } = createApp({
   db,
   storage,
   embeddings,
+  ocr,
   llm,
   logger,
   corsOrigin: env.CORS_ORIGIN,
@@ -49,6 +53,9 @@ const server = app.listen(env.PORT, '127.0.0.1', () => {
 embeddings.warmUp().catch((error: unknown) => {
   logger.error({ err: error }, 'No se pudo cargar el modelo de embeddings (¿sin conexión la primera vez?)');
 });
+ocr.warmUp().catch((error: unknown) => {
+  logger.error({ err: error }, 'No se pudo cargar el OCR (¿sin conexión la primera vez?)');
+});
 
 documentsService
   .resumeUnfinished()
@@ -65,6 +72,7 @@ async function shutdown(signal: string) {
   server.close();
   // Documents interrupted here stay PENDING/PROCESSING and are resumed on the next start.
   await Promise.race([queue.idle(), new Promise((resolve) => setTimeout(resolve, 5_000))]);
+  await ocr.close();
   await db.$disconnect();
   process.exit(0);
 }

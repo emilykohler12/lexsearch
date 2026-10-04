@@ -15,6 +15,8 @@ export interface LibraryDocument {
   pageCount: number | null;
   chunkCount: number;
   charCount: number | null;
+  /** Pages read with OCR (scans and photos); their text may contain reading errors. */
+  ocrPageCount: number;
   processedAt: string | null;
   createdAt: string;
   updatedAt: string;

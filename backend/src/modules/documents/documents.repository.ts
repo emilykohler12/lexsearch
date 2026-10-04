@@ -27,6 +27,7 @@ export interface NewDocument {
 export interface IndexedDocumentMeta {
   pageCount: number | null;
   charCount: number;
+  ocrPageCount: number;
   embeddingModel: string;
 }
 
@@ -111,6 +112,7 @@ export class DocumentsRepository {
             chunkCount: chunks.length,
             pageCount: meta.pageCount,
             charCount: meta.charCount,
+            ocrPageCount: meta.ocrPageCount,
             embeddingModel: meta.embeddingModel,
             processedAt: new Date(),
           },

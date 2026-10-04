@@ -1,6 +1,22 @@
 import type { EmbeddingProvider, EmbeddingStatus } from '../../src/modules/embeddings/embedding-provider.js';
 import { EMBEDDING_DIMENSIONS } from '../../src/modules/embeddings/embedding-provider.js';
 import type { GroundedAnswer, GroundedAnswerInput, LlmProvider } from '../../src/modules/llm/llm-provider.js';
+import type { OcrEngine, OcrResult } from '../../src/modules/ocr/ocr-engine.js';
+
+/** "Reads" whatever text the test sets, and counts how many images it was given. */
+export class FakeOcrEngine implements OcrEngine {
+  text = '';
+  calls = 0;
+
+  async recognize(): Promise<OcrResult> {
+    this.calls++;
+    return { text: this.text, confidence: 90 };
+  }
+
+  async warmUp(): Promise<void> {}
+
+  async close(): Promise<void> {}
+}
 
 const normalizeWord = (word: string) =>
   word

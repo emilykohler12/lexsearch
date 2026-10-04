@@ -3,9 +3,10 @@ import { useId, useRef, useState, type DragEvent } from 'react';
 import { useUploadDocuments } from '../../api/hooks';
 import type { DocumentCategory, UploadResult } from '../../api/types';
 import { Alert, Spinner } from '../../components/ui';
-import { CATEGORIES, CATEGORY_HINTS, CATEGORY_LABELS } from '../../lib/format';
+import { CATEGORIES, CATEGORY_LABELS } from '../../lib/format';
 
-const ACCEPT = '.pdf,.docx,.txt,.md';
+// Photos and scans are read with OCR.
+const ACCEPT = '.pdf,.docx,.txt,.md,.jpg,.jpeg,.png,.webp,.tif,.tiff';
 
 export function UploadPanel() {
   const [category, setCategory] = useState<DocumentCategory>('LEGISLACION');
@@ -35,10 +36,6 @@ export function UploadPanel() {
       <h2 id="upload-title" className="text-lg">
         Subir documentos
       </h2>
-      <p className="mt-1 text-sm text-muted">
-        PDF (con texto, no escaneados), Word (.docx) o texto. Se procesan en tu computadora: el contenido completo no
-        se envía a ningún servicio externo.
-      </p>
 
       <div className="mt-4 grid gap-4 md:grid-cols-[16rem_1fr]">
         <div>
@@ -57,7 +54,6 @@ export function UploadPanel() {
               </option>
             ))}
           </select>
-          <p className="mt-1.5 text-xs text-muted">{CATEGORY_HINTS[category]}</p>
         </div>
 
         {/* The whole zone is the file picker's label: a tap (phone) or click opens it, and it also accepts drops. */}

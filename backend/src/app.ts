@@ -21,6 +21,7 @@ import { InteractionsController } from './modules/interactions/interactions.cont
 import { InteractionsRepository } from './modules/interactions/interactions.repository.js';
 import { interactionsRouter } from './modules/interactions/interactions.routes.js';
 import type { LlmProvider } from './modules/llm/llm-provider.js';
+import type { OcrEngine } from './modules/ocr/ocr-engine.js';
 import { RagController } from './modules/rag/rag.controller.js';
 import { RagRepository } from './modules/rag/rag.repository.js';
 import { ragRouter } from './modules/rag/rag.routes.js';
@@ -30,6 +31,7 @@ export interface AppDeps {
   db: PrismaClient;
   storage: FileStorage;
   embeddings: EmbeddingProvider;
+  ocr: OcrEngine;
   llm: LlmProvider | null;
   logger: Logger;
   corsOrigin: string;
@@ -38,13 +40,13 @@ export interface AppDeps {
 
 /**
  * Builds the Express app with every dependency injected, so tests can swap the
- * embedding model and the LLM for fakes and use a separate database.
+ * embedding model, the OCR engine and the LLM for fakes and use a separate database.
  */
 export function createApp(deps: AppDeps) {
-  const { db, storage, embeddings, llm, logger } = deps;
+  const { db, storage, embeddings, ocr, llm, logger } = deps;
 
   const documentsRepository = new DocumentsRepository(db);
-  const ingestion = new IngestionService({ repository: documentsRepository, storage, embeddings, logger });
+  const ingestion = new IngestionService({ repository: documentsRepository, storage, embeddings, ocr, logger });
   const queue = new IngestionQueue((id) => ingestion.process(id), logger);
   const documentsService = new DocumentsService({ repository: documentsRepository, storage, queue });
   const interactionsRepository = new InteractionsRepository(db);
