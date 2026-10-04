@@ -1,6 +1,9 @@
 import type {
   AskResult,
+  CreateDraftInput,
   DocumentCategory,
+  Draft,
+  DraftSummary,
   Health,
   InteractionDetail,
   InteractionSummary,
@@ -90,4 +93,18 @@ export const api = {
 
   getInteraction: (id: string) =>
     request<{ interaction: InteractionDetail }>(`/interactions/${id}`).then((r) => r.interaction),
+
+  listDrafts: () => request<{ drafts: DraftSummary[] }>('/drafts').then((r) => r.drafts),
+
+  getDraft: (id: string) => request<{ draft: Draft }>(`/drafts/${id}`).then((r) => r.draft),
+
+  createDraft: (input: CreateDraftInput) =>
+    request<{ draft: Draft }>('/drafts', { method: 'POST', body: json(input) }).then((r) => r.draft),
+
+  updateDraft: (id: string, data: { title?: string; content?: string }) =>
+    request<{ draft: Draft }>(`/drafts/${id}`, { method: 'PATCH', body: json(data) }).then((r) => r.draft),
+
+  deleteDraft: (id: string) => request<void>(`/drafts/${id}`, { method: 'DELETE' }),
+
+  draftDocxUrl: (id: string) => `/api/drafts/${id}/docx`,
 };

@@ -25,6 +25,8 @@ const envSchema = z.object({
 
   EMBEDDING_MODEL: z.string().default('Xenova/multilingual-e5-base'),
   MODELS_CACHE_DIR: z.string().default('.cache/models'),
+  // Fragments found only "by meaning" need at least this similarity to be shown (see docs/decisiones.md, D5).
+  SEARCH_MIN_SIMILARITY: z.coerce.number().min(0).max(1).default(0.8),
 
   GEMINI_API_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
   GEMINI_MODEL: z.string().default('gemini-3.5-flash-lite'),

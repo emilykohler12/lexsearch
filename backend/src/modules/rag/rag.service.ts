@@ -16,6 +16,9 @@ const CANDIDATES_PER_SEARCH = 30;
 /** Fragments handed to the model to answer a question. */
 const SOURCES_PER_ANSWER = 8;
 
+export const NOTHING_FOUND_ANSWER =
+  'No encontré en tu biblioteca fragmentos relacionados con esta consulta. Probá con otras palabras o subí documentos sobre el tema.';
+
 export interface SearchHit {
   chunkId: string;
   documentId: string;
@@ -71,10 +74,13 @@ export class RagService {
     const filters = { categories: input.categories, documentIds: input.documentIds };
 
     const queryVector = await embeddings.embedQuery(input.query);
-    const [semantic, keyword] = await Promise.all([
+    const [nearest, keyword] = await Promise.all([
       repository.semanticSearch(queryVector, filters, CANDIDATES_PER_SEARCH),
       repository.keywordSearch(input.query, filters, CANDIDATES_PER_SEARCH),
     ]);
+    // Nearest neighbours always exist, even for nonsense: a fragment counts as found
+    // "by meaning" only above the model's relevance threshold. Exact-word matches always count.
+    const semantic = nearest.filter((hit) => hit.score >= embeddings.minRelevantSimilarity);
 
     return reciprocalRankFusion({ semantic, keyword })
       .slice(0, input.limit)
@@ -90,7 +96,7 @@ export class RagService {
         content: item.content,
         score,
         matchedBy: (['semantic', 'keyword'] as const).filter((name) => ranks[name] !== undefined),
-        similarity: semantic.find((hit) => hit.id === item.id)?.score ?? null,
+        similarity: nearest.find((hit) => hit.id === item.id)?.score ?? null,
       }));
   }
 
@@ -118,6 +124,29 @@ export class RagService {
       categories: input.categories ?? [],
       documentIds: input.documentIds ?? [],
     };
+
+    // Nothing related in the library: say so without paying for a model call.
+    if (sources.length === 0) {
+      const blocks = [{ text: NOTHING_FOUND_ANSWER, citations: [] }];
+      const interaction = await interactions.create({
+        module: RAG_MODULE,
+        input: interactionInput,
+        context: [],
+        output: { blocks, sources: [] },
+        durationMs: 0,
+        status: 'SUCCESS',
+      });
+      return {
+        interactionId: interaction.id,
+        question: input.question,
+        blocks,
+        sources: [],
+        model: '',
+        usage: { inputTokens: 0, outputTokens: 0 },
+        durationMs: 0,
+        createdAt: interaction.createdAt,
+      };
+    }
     const interactionContext = sources.map((s) => ({
       number: s.number,
       chunkId: s.chunkId,

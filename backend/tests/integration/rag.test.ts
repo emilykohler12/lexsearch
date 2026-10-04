@@ -64,6 +64,13 @@ describe('POST /api/rag/search', () => {
     for (const hit of res.body.results) expect(hit.category).toBe('MODELO');
   });
 
+  it('returns nothing for queries unrelated to the library', async () => {
+    await seedLibrary();
+    const res = await request(ctx.app).post('/api/rag/search').send({ query: 'ghfghfgh' });
+    expect(res.status).toBe(200);
+    expect(res.body.results).toEqual([]);
+  });
+
   it('validates the query', async () => {
     const res = await request(ctx.app).post('/api/rag/search').send({ query: '' });
     expect(res.status).toBe(400);
@@ -95,6 +102,15 @@ describe('POST /api/rag/ask', () => {
     });
     const detail = await request(ctx.app).get(`/api/interactions/${res.body.interactionId}`);
     expect(detail.body.interaction).toMatchObject({ promptVersion: 'rag-answer.v2', inputTokens: 1000 });
+  });
+
+  it('says nothing was found, without calling the model, when no fragment is related', async () => {
+    await seedLibrary();
+    const res = await request(ctx.app).post('/api/rag/ask').send({ question: 'ghfghfgh qwerty' });
+    expect(res.status).toBe(200);
+    expect(res.body.blocks).toEqual([{ text: expect.stringMatching(/No encontré en tu biblioteca/), citations: [] }]);
+    expect(res.body.sources).toEqual([]);
+    expect(llm.calls).toHaveLength(0);
   });
 
   it('refuses politely when the library is empty', async () => {

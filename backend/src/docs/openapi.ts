@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { updateDocumentSchema, uploadFieldsSchema } from '../modules/documents/documents.schemas.js';
+import { createDraftSchema, updateDraftSchema } from '../modules/drafts/drafts.schemas.js';
 import { askBodySchema, searchBodySchema } from '../modules/rag/rag.schemas.js';
 
 /** Request schemas come from the same zod validators the API uses, so the docs can't drift. */
@@ -39,6 +40,7 @@ export function buildOpenApiDocument() {
       { name: 'Sistema' },
       { name: 'Biblioteca', description: 'Documentos propios: legislación, jurisprudencia, doctrina y modelos' },
       { name: 'Consultas', description: 'Búsqueda en la biblioteca y respuestas con citas (RAG)' },
+      { name: 'Borradores', description: 'Escritos y contratos redactados por el agente con la biblioteca como referencia' },
       { name: 'Historial', description: 'Interacciones registradas con los módulos de IA' },
     ],
     paths: {
@@ -123,6 +125,32 @@ export function buildOpenApiDocument() {
             503: errorResponse,
           },
         },
+      },
+      '/api/drafts': {
+        get: { tags: ['Borradores'], summary: 'Listar borradores (sin el texto)', responses: { 200: { description: 'OK' } } },
+        post: {
+          tags: ['Borradores'],
+          summary: 'Redactar un borrador con el agente',
+          description:
+            'El agente busca en la biblioteca y lee el modelo base (si se eligió) antes de redactar. Puede tardar hasta un minuto.',
+          requestBody: { required: true, ...json(jsonSchema(createDraftSchema)) },
+          responses: { 201: { description: 'Borrador creado' }, 400: errorResponse, 429: errorResponse, 502: errorResponse, 503: errorResponse },
+        },
+      },
+      '/api/drafts/{id}': {
+        parameters: [idParam],
+        get: { tags: ['Borradores'], summary: 'Detalle de un borrador', responses: { 200: { description: 'OK' }, 404: errorResponse } },
+        patch: {
+          tags: ['Borradores'],
+          summary: 'Guardar cambios del abogado (título o texto)',
+          requestBody: { required: true, ...json(jsonSchema(updateDraftSchema)) },
+          responses: { 200: { description: 'OK' }, 400: errorResponse, 404: errorResponse },
+        },
+        delete: { tags: ['Borradores'], summary: 'Eliminar un borrador', responses: { 204: { description: 'Eliminado' }, 404: errorResponse } },
+      },
+      '/api/drafts/{id}/docx': {
+        parameters: [idParam],
+        get: { tags: ['Borradores'], summary: 'Descargar como Word (.docx)', responses: { 200: { description: 'Archivo .docx' }, 404: errorResponse } },
       },
       '/api/interactions': {
         get: {

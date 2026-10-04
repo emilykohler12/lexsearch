@@ -4,7 +4,7 @@ Registro breve de las decisiones de arquitectura de LexSearch: qué se decidió,
 
 ## D1 · Monolito modular
 
-Una sola aplicación backend con módulos internos bien separados (`documents`, `rag`, `llm`, `embeddings`, `interactions`), cada uno con capas `routes → controller → service → repository`. Es un sistema para un único usuario: microservicios agregarían complejidad operativa sin beneficio.
+Una sola aplicación backend con módulos internos bien separados (`documents`, `rag`, `drafts`, `llm`, `embeddings`, `interactions`), cada uno con capas `routes → controller → service → repository`. Es un sistema para un único usuario: microservicios agregarían complejidad operativa sin beneficio.
 
 ## D2 · PostgreSQL 17 + pgvector en Docker
 
@@ -33,6 +33,8 @@ Una sola aplicación backend con módulos internos bien separados (`documents`, 
 ## D5 · Búsqueda híbrida con Reciprocal Rank Fusion
 
 La búsqueda por vectores entiende paráfrasis ("irse del local antes de tiempo" → "rescisión anticipada") pero diluye referencias exactas ("art. 245", "Ley 20.744"). Por eso se combinan dos búsquedas: semántica (pgvector, distancia coseno) y por palabras (full-text de Postgres con configuración `es_unaccent`: español con *stemming* y sin acentos). Los dos rankings se fusionan con RRF, que usa solo las posiciones y no requiere calibrar puntajes incomparables.
+
+**Umbral de relevancia.** RRF solo ordena: sin un piso, cualquier consulta (incluso «ghfghfgh») devolvía los fragmentos «menos lejanos» de la biblioteca. Medido con el modelo e5, las consultas sin relación dan una similitud coseno de 0,73 a 0,76 y las relacionadas, de 0,79 en adelante. Por eso los resultados que llegan solo por significado tienen que alcanzar **0,80** (`SEARCH_MIN_SIMILARITY`); los que coinciden por palabras exactas se muestran siempre. Si no queda ninguno, «Preguntar a la IA» responde que no encontró material, sin llamar a Gemini: no se gasta cupo ni se le da pie a inventar. La escala depende del modelo (por eso el valor vive en el `EmbeddingProvider`): si se cambia el modelo de embeddings, hay que recalibrarlo.
 
 ## D6 · Fragmentación por párrafos
 
@@ -69,3 +71,14 @@ Anonimización **parcial y reversible** de identificadores directos (nombre, DNI
 - **Cómo:** la página del PDF se dibuja como imagen al doble de tamaño (`pdf-parse`); las fotos se corrigen con `sharp` (rotación según el celular, escala de grises, contraste y tamaño) antes de leerlas. En pruebas, una cédula escaneada se leyó con 94 % de confianza en menos de medio segundo por página.
 - **Transparencia:** cada documento guarda cuántas páginas se leyeron con OCR (`ocr_page_count`) y la biblioteca lo marca como «Leído con OCR», porque el texto puede tener errores de lectura.
 - **Fuera de alcance por ahora:** las fotos HEIC del iPhone (se pide mandarlas como JPG) y la escritura manuscrita.
+
+## D14 · Borradores con un agente que usa herramientas
+
+- **Por qué un agente:** un buen borrador necesita material que el abogado no eligió de antemano (otro modelo parecido, una cláusula, la norma aplicable). En lugar de meter toda la biblioteca en el prompt, Gemini recibe dos herramientas y decide qué consultar: `buscar_en_biblioteca` (la misma búsqueda híbrida, 6 fragmentos por búsqueda, con filtro opcional por tipo) y `leer_documento` (texto completo de un documento procesado, hasta 40.000 caracteres). Tiene hasta 4 rondas de consultas; después ya no puede usarlas y tiene que escribir.
+- **Solo lectura:** las herramientas solo leen la biblioteca; el agente no puede modificar nada. Lo que devuelven se trata como datos, no como instrucciones (inyección de prompt).
+- **Interfaz neutral:** `LlmProvider.runAgent` recibe herramientas definidas como nombre + descripción + esquema JSON + función. La implementación de Gemini usa *function calling*, conserva intactos los turnos del modelo (incluidas sus firmas de razonamiento) y, si un modelo falla por saturación o cupo, reinicia toda la redacción con el modelo de respaldo.
+- **Nada inventado:** el prompt (`draft-generator.v1`) prohíbe citar normas o fallos que no estén en la biblioteca (deja `[COMPLETAR: norma aplicable]`) e inventar datos de las partes (`[COMPLETAR: DNI del cliente]`). La interfaz resalta esos marcadores y cuenta cuántos quedan. En las pruebas con Gemini, el borrador citó solo la ley que figuraba en el modelo base y dejó marcadas las cosas que faltaban.
+- **Formato:** el agente escribe un subconjunto de Markdown (títulos, cláusulas numeradas, negrita). La web lo muestra como vista previa y el servidor lo convierte a Word (.docx) con Times New Roman 12, texto justificado e interlineado 1,5. Las líneas de guiones bajos se mantienen como líneas de firma. El agente propone además un título breve («Título: …») para distinguir los borradores en la lista.
+- **Trazabilidad:** cada borrador guarda la lista de lo que el agente consultó (documentos leídos y fragmentos), y el historial de interacciones guarda el texto original de la IA, las herramientas usadas, tokens y versión del prompt, aunque después el abogado edite el borrador.
+- **Edición:** los cambios se guardan solos un segundo después de dejar de escribir; al salir de la página se guarda lo pendiente.
+- **Privacidad:** a diferencia de las consultas, acá viajan a Gemini los datos del caso y el texto completo de los documentos que el agente lee. Vale la misma condición de D4 y D12: facturación activada (y anonimización en la Fase 10) antes de usar datos reales de clientes.

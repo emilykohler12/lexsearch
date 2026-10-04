@@ -41,6 +41,7 @@ export async function createTestApp(options: { llm?: LlmProvider | null } = {}) 
       await queue.idle();
       ocr.text = '';
       ocr.calls = 0;
+      await db.draft.deleteMany();
       await db.agentInteraction.deleteMany();
       await db.document.deleteMany();
     },

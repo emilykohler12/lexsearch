@@ -84,17 +84,7 @@ function InteractionDetailView({ id }: { id: string }) {
             <Alert tone="error">Esta consulta falló: {interaction.errorMessage}</Alert>
           )}
           {interaction.output && (
-            <AnswerView
-              blocks={interaction.output.blocks}
-              sources={interaction.output.sources}
-              footer={[
-                interaction.model && `Modelo: ${interaction.model}`,
-                interaction.promptVersion && `prompt ${interaction.promptVersion}`,
-                interaction.durationMs !== null && formatSeconds(interaction.durationMs),
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            />
+            <AnswerView blocks={interaction.output.blocks} sources={interaction.output.sources} />
           )}
         </div>
       )}

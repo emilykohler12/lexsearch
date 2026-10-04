@@ -16,6 +16,7 @@ const embeddings = new LocalEmbeddingProvider({
   modelName: env.EMBEDDING_MODEL,
   dimensions: EMBEDDING_DIMENSIONS,
   cacheDir: modelsCacheDir,
+  minRelevantSimilarity: env.SEARCH_MIN_SIMILARITY,
   logger,
 });
 

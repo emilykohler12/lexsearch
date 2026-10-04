@@ -43,8 +43,43 @@ export interface GroundedAnswer {
   usage: LlmUsage;
 }
 
+/** A capability the agent may decide to use (search the library, read a document...). */
+export interface AgentTool {
+  name: string;
+  description: string;
+  /** JSON Schema of the arguments. */
+  parameters: Record<string, unknown>;
+  execute(args: Record<string, unknown>): Promise<unknown>;
+}
+
+export interface AgentRunInput {
+  systemPrompt: string;
+  userMessage: string;
+  tools: AgentTool[];
+  /** Rounds of tool use allowed; after that the model must write its final answer. */
+  maxToolRounds: number;
+}
+
+export interface AgentToolCall {
+  tool: string;
+  args: Record<string, unknown>;
+  ok: boolean;
+  error?: string;
+}
+
+export interface AgentRunResult {
+  /** The model's final answer (for drafts: the document in Markdown). */
+  text: string;
+  /** Every tool the model used, in order: kept to debug why a result came out wrong. */
+  toolCalls: AgentToolCall[];
+  model: string;
+  usage: LlmUsage;
+}
+
 export interface LlmProvider {
   readonly providerName: string;
   readonly model: string;
   generateGroundedAnswer(input: GroundedAnswerInput): Promise<GroundedAnswer>;
+  /** Lets the model call tools in a loop until it produces a final answer. */
+  runAgent(input: AgentRunInput): Promise<AgentRunResult>;
 }

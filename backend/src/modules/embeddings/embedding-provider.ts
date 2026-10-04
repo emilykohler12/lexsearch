@@ -5,6 +5,11 @@
 export interface EmbeddingProvider {
   readonly modelName: string;
   readonly dimensions: number;
+  /**
+   * Cosine similarity below which a fragment is not considered related to a query.
+   * Each model has its own scale (e5 scores even nonsense around 0.75), so it lives here.
+   */
+  readonly minRelevantSimilarity: number;
   embedDocuments(texts: string[]): Promise<number[][]>;
   embedQuery(text: string): Promise<number[]>;
   /** Loads the model ahead of time so the first upload doesn't pay for it. */

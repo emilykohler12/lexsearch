@@ -1,6 +1,13 @@
 import type { EmbeddingProvider, EmbeddingStatus } from '../../src/modules/embeddings/embedding-provider.js';
 import { EMBEDDING_DIMENSIONS } from '../../src/modules/embeddings/embedding-provider.js';
-import type { GroundedAnswer, GroundedAnswerInput, LlmProvider } from '../../src/modules/llm/llm-provider.js';
+import type {
+  AgentRunInput,
+  AgentRunResult,
+  AgentToolCall,
+  GroundedAnswer,
+  GroundedAnswerInput,
+  LlmProvider,
+} from '../../src/modules/llm/llm-provider.js';
 import type { OcrEngine, OcrResult } from '../../src/modules/ocr/ocr-engine.js';
 
 /** "Reads" whatever text the test sets, and counts how many images it was given. */
@@ -31,6 +38,8 @@ const normalizeWord = (word: string) =>
 export class FakeEmbeddingProvider implements EmbeddingProvider {
   readonly modelName = 'fake-bag-of-words';
   readonly dimensions = EMBEDDING_DIMENSIONS;
+  // Bag-of-words scale: texts sharing a few words score ~0.3, unrelated ones ~0.
+  readonly minRelevantSimilarity = 0.1;
 
   status(): EmbeddingStatus {
     return 'ready';
@@ -58,11 +67,50 @@ export class FakeEmbeddingProvider implements EmbeddingProvider {
   }
 }
 
-/** Answers citing the first document, and remembers what it was asked. */
+/**
+ * Answers citing the first document, and remembers what it was asked. As an agent, it
+ * searches the library once, reads the base model if the request names one, and writes
+ * a short draft quoting what it found — enough to exercise the real tools end to end.
+ */
 export class FakeLlmProvider implements LlmProvider {
   readonly providerName = 'fake';
   readonly model = 'fake-model';
   calls: GroundedAnswerInput[] = [];
+  agentCalls: AgentRunInput[] = [];
+  agentSearchQuery = 'plazo para contestar la demanda';
+
+  async runAgent(input: AgentRunInput): Promise<AgentRunResult> {
+    this.agentCalls.push(input);
+    const toolCalls: AgentToolCall[] = [];
+    const use = async (name: string, args: Record<string, unknown>) => {
+      const tool = input.tools.find((t) => t.name === name);
+      if (!tool) throw new Error(`missing tool ${name}`);
+      const result = await tool.execute(args);
+      toolCalls.push({ tool: name, args, ok: true });
+      return result;
+    };
+
+    const search = (await use('buscar_en_biblioteca', { consulta: this.agentSearchQuery })) as {
+      fragmentos: Array<{ texto: string }>;
+    };
+    const templateId = /documento_id: ([0-9a-f-]{36})/.exec(input.userMessage)?.[1];
+    const template = templateId ? ((await use('leer_documento', { documento_id: templateId })) as { texto: string }) : null;
+
+    const text = [
+      'Título: CD a Distribuidora Ejemplo',
+      '',
+      '```markdown',
+      '# CARTA DOCUMENTO',
+      '',
+      'Remitente: [COMPLETAR: nombre del remitente]',
+      'Destinatario: Distribuidora Ejemplo S.A.',
+      '',
+      `Fundamento: ${search.fragmentos[0]?.texto.slice(0, 60) ?? 'sin respaldo'}`,
+      ...(template ? ['', `Según el modelo: ${template.texto.slice(0, 40)}`] : []),
+      '```',
+    ].join('\n');
+    return { text, toolCalls, model: this.model, usage: { inputTokens: 2000, outputTokens: 300 } };
+  }
 
   async generateGroundedAnswer(input: GroundedAnswerInput): Promise<GroundedAnswer> {
     this.calls.push(input);

@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import type { DocumentCategory, SearchFilters } from './types';
+import type { CreateDraftInput, DocumentCategory, SearchFilters } from './types';
 
 export const queryKeys = {
   health: ['health'] as const,
   documents: ['documents'] as const,
   interactions: ['interactions'] as const,
   interaction: (id: string) => ['interactions', id] as const,
+  drafts: ['drafts'] as const,
+  draft: (id: string) => ['drafts', id] as const,
 };
 
 export function useHealth() {
@@ -86,5 +88,47 @@ export function useInteraction(id: string | undefined) {
     queryKey: queryKeys.interaction(id ?? ''),
     queryFn: () => api.getInteraction(id!),
     enabled: Boolean(id),
+  });
+}
+
+export function useDrafts() {
+  return useQuery({ queryKey: queryKeys.drafts, queryFn: api.listDrafts });
+}
+
+export function useDraft(id: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.draft(id ?? ''),
+    queryFn: () => api.getDraft(id!),
+    enabled: Boolean(id),
+  });
+}
+
+export function useCreateDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateDraftInput) => api.createDraft(input),
+    onSuccess: (draft) => {
+      queryClient.setQueryData(queryKeys.draft(draft.id), draft);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.drafts, exact: true });
+    },
+  });
+}
+
+export function useUpdateDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; title?: string; content?: string }) => api.updateDraft(id, data),
+    onSuccess: (draft) => {
+      queryClient.setQueryData(queryKeys.draft(draft.id), draft);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.drafts, exact: true });
+    },
+  });
+}
+
+export function useDeleteDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.deleteDraft,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.drafts, exact: true }),
   });
 }

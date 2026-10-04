@@ -1,6 +1,8 @@
 import { BrowserRouter, Link, Route, Routes } from 'react-router';
 import { Layout } from './components/Layout';
 import { ConsultPage } from './pages/ConsultPage';
+import { DraftDetailPage } from './pages/DraftDetailPage';
+import { DraftsPage } from './pages/DraftsPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LibraryPage } from './pages/LibraryPage';
 
@@ -10,6 +12,8 @@ export function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<ConsultPage />} />
+          <Route path="borradores" element={<DraftsPage />} />
+          <Route path="borradores/:id" element={<DraftDetailPage />} />
           <Route path="biblioteca" element={<LibraryPage />} />
           <Route path="historial" element={<HistoryPage />} />
           <Route path="historial/:id" element={<HistoryPage />} />

@@ -99,3 +99,49 @@ export interface InteractionDetail extends Omit<InteractionSummary, 'question'> 
   outputTokens: number | null;
   errorMessage: string | null;
 }
+
+export type DraftType =
+  | 'CARTA_DOCUMENTO'
+  | 'CONTRATO'
+  | 'DEMANDA'
+  | 'CONTESTACION_DEMANDA'
+  | 'ESCRITO_JUDICIAL'
+  | 'NOTA'
+  | 'OTRO';
+
+export interface DraftSummary {
+  id: string;
+  title: string;
+  documentType: DraftType;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Library material the drafting agent consulted. */
+export interface DraftSource {
+  kind: 'fragment' | 'document';
+  documentId: string;
+  documentTitle: string;
+  chunkId?: string;
+  pageStart?: number | null;
+  pageEnd?: number | null;
+  content?: string;
+}
+
+export interface Draft extends DraftSummary {
+  instructions: string;
+  caseDetails: string;
+  templateDocumentId: string | null;
+  content: string;
+  sources: DraftSource[];
+  model: string | null;
+}
+
+export interface CreateDraftInput {
+  documentType: DraftType;
+  title?: string;
+  instructions: string;
+  caseDetails: string;
+  templateDocumentId?: string;
+  categories?: DocumentCategory[];
+}

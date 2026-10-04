@@ -1,4 +1,4 @@
-import type { DocumentCategory, DocumentStatus } from '../api/types';
+import type { DocumentCategory, DocumentStatus, DraftType } from '../api/types';
 
 export const CATEGORY_LABELS: Record<DocumentCategory, string> = {
   LEGISLACION: 'Legislación',
@@ -45,3 +45,15 @@ export function formatPages(pageStart: number | null, pageEnd: number | null): s
   if (pageEnd === null || pageEnd === pageStart) return `pág. ${pageStart}`;
   return `págs. ${pageStart}–${pageEnd}`;
 }
+
+export const DRAFT_TYPE_LABELS: Record<DraftType, string> = {
+  CARTA_DOCUMENTO: 'Carta documento',
+  CONTRATO: 'Contrato',
+  DEMANDA: 'Demanda',
+  CONTESTACION_DEMANDA: 'Contestación de demanda',
+  ESCRITO_JUDICIAL: 'Otro escrito judicial',
+  NOTA: 'Nota o intimación',
+  OTRO: 'Otro documento',
+};
+
+export const DRAFT_TYPES = Object.keys(DRAFT_TYPE_LABELS) as DraftType[];

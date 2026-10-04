@@ -8,6 +8,8 @@ interface LocalEmbeddingOptions {
   cacheDir: string;
   logger: Logger;
   batchSize?: number;
+  /** Calibrated for multilingual-e5-base: unrelated text scores 0.73-0.76, related text 0.79+. */
+  minRelevantSimilarity?: number;
 }
 
 /**
@@ -17,6 +19,7 @@ interface LocalEmbeddingOptions {
 export class LocalEmbeddingProvider implements EmbeddingProvider {
   readonly modelName: string;
   readonly dimensions: number;
+  readonly minRelevantSimilarity: number;
   private readonly batchSize: number;
   private readonly logger: Logger;
   private extractor: Promise<FeatureExtractionPipeline> | null = null;
@@ -25,6 +28,7 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
   constructor(options: LocalEmbeddingOptions) {
     this.modelName = options.modelName;
     this.dimensions = options.dimensions;
+    this.minRelevantSimilarity = options.minRelevantSimilarity ?? 0.8;
     this.batchSize = options.batchSize ?? 16;
     this.logger = options.logger;
     transformersEnv.cacheDir = options.cacheDir;

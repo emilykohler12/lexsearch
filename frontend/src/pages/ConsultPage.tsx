@@ -6,7 +6,7 @@ import type { DocumentCategory } from '../api/types';
 import { Alert, PageHeader, Spinner } from '../components/ui';
 import { AnswerView } from '../features/consult/AnswerView';
 import { SourceCard } from '../features/consult/SourceCard';
-import { CATEGORIES, CATEGORY_LABELS, formatSeconds } from '../lib/format';
+import { CATEGORIES, CATEGORY_LABELS } from '../lib/format';
 
 const EXAMPLES = [
   '¿Qué plazo hay para contestar la demanda en un juicio ordinario?',
@@ -181,12 +181,7 @@ export function ConsultPage() {
         </div>
 
         {ask.data && (
-          <AnswerView
-            key={ask.data.interactionId}
-            blocks={ask.data.blocks}
-            sources={ask.data.sources}
-            footer={`Modelo: ${ask.data.model} · ${formatSeconds(ask.data.durationMs)}.`}
-          />
+          <AnswerView key={ask.data.interactionId} blocks={ask.data.blocks} sources={ask.data.sources} />
         )}
 
         {search.data && (

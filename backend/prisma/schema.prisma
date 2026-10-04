@@ -51,6 +51,8 @@ model Document {
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
   chunks         DocumentChunk[]
+  /// Borradores que usaron este documento como modelo base.
+  drafts         Draft[]
 
   @@index([category])
   @@index([status])
@@ -64,20 +66,20 @@ model Document {
 /// generada, índice HNSW). Los atributos de abajo existen para que `prisma migrate dev`
 /// los reconozca y no intente borrarlos en migraciones futuras: no los quites.
 model DocumentChunk {
-  id           String                     @id @default(uuid()) @db.Uuid
-  documentId   String                     @map("document_id") @db.Uuid
+  id           String                      @id @default(uuid()) @db.Uuid
+  documentId   String                      @map("document_id") @db.Uuid
   /// Posición del fragmento dentro del documento (0, 1, 2...).
   ordinal      Int
   content      String
-  pageStart    Int?                       @map("page_start")
-  pageEnd      Int?                       @map("page_end")
-  charCount    Int                        @map("char_count")
+  pageStart    Int?                        @map("page_start")
+  pageEnd      Int?                        @map("page_end")
+  charCount    Int                         @map("char_count")
   /// Dimensión atada al modelo de embeddings (multilingual-e5-base = 768).
   embedding    Unsupported("vector(768)")?
   /// Columna GENERATED de Postgres para la búsqueda por palabras (español, sin acentos).
-  searchVector Unsupported("tsvector")?   @default(dbgenerated("to_tsvector('es_unaccent'::regconfig, content)")) @map("search_vector")
-  createdAt    DateTime                   @default(now()) @map("created_at")
-  document     Document                   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  searchVector Unsupported("tsvector")?    @default(dbgenerated("to_tsvector('es_unaccent'::regconfig, content)")) @map("search_vector")
+  createdAt    DateTime                    @default(now()) @map("created_at")
+  document     Document                    @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@unique([documentId, ordinal])
   /// Índice HNSW (vector_cosine_ops) creado en la migración inicial.
@@ -110,4 +112,27 @@ model AgentInteraction {
 
   @@index([module, createdAt])
   @@map("agent_interactions")
+}
+
+/// Borradores de escritos y contratos redactados por el agente (Fase 2).
+model Draft {
+  id                 String    @id @default(uuid()) @db.Uuid
+  title              String
+  /// Tipo de escrito (CARTA_DOCUMENTO, CONTRATO, DEMANDA...; ver drafts.schemas.ts).
+  documentType       String    @map("document_type")
+  instructions       String
+  caseDetails        String    @map("case_details")
+  templateDocumentId String?   @map("template_document_id") @db.Uuid
+  /// Texto del borrador en Markdown; el abogado lo edita y lo guarda.
+  content            String
+  /// Fragmentos y documentos de la biblioteca que el agente consultó para redactarlo.
+  sources            Json
+  model              String?
+  interactionId      String?   @map("interaction_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  templateDocument   Document? @relation(fields: [templateDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@map("drafts")
 }

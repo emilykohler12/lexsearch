@@ -9,12 +9,17 @@ import { buildOpenApiDocument } from './docs/openapi.js';
 import type { FileStorage } from './lib/file-storage.js';
 import type { Logger } from './lib/logger.js';
 import { errorHandler, notFoundHandler } from './middlewares/error-handler.js';
+import { DocumentTextReader } from './modules/documents/document-text.js';
 import { DocumentsController } from './modules/documents/documents.controller.js';
 import { DocumentsRepository } from './modules/documents/documents.repository.js';
 import { documentsRouter } from './modules/documents/documents.routes.js';
 import { DocumentsService } from './modules/documents/documents.service.js';
 import { IngestionQueue } from './modules/documents/ingestion/ingestion-queue.js';
 import { IngestionService } from './modules/documents/ingestion/ingestion.service.js';
+import { DraftsController } from './modules/drafts/drafts.controller.js';
+import { DraftsRepository } from './modules/drafts/drafts.repository.js';
+import { draftsRouter } from './modules/drafts/drafts.routes.js';
+import { DraftsService } from './modules/drafts/drafts.service.js';
 import type { EmbeddingProvider } from './modules/embeddings/embedding-provider.js';
 import { healthRouter } from './modules/health/health.routes.js';
 import { InteractionsController } from './modules/interactions/interactions.controller.js';
@@ -53,6 +58,15 @@ export function createApp(deps: AppDeps) {
   const ragService = new RagService({
     repository: new RagRepository(db),
     embeddings,
+    llm,
+    interactions: interactionsRepository,
+    logger,
+  });
+  const draftsService = new DraftsService({
+    repository: new DraftsRepository(db),
+    documents: documentsRepository,
+    reader: new DocumentTextReader({ repository: documentsRepository, storage, ocr }),
+    rag: ragService,
     llm,
     interactions: interactionsRepository,
     logger,
@@ -109,6 +123,7 @@ export function createApp(deps: AppDeps) {
     }),
   );
   app.use('/api/rag', ragRouter(new RagController(ragService)));
+  app.use('/api/drafts', draftsRouter(new DraftsController(draftsService)));
   app.use('/api/interactions', interactionsRouter(new InteractionsController(interactionsRepository)));
 
   app.use(notFoundHandler);

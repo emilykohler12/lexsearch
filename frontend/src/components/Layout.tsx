@@ -15,13 +15,13 @@ import { useHealth } from '../api/hooks';
 
 const NAV: Array<{ to: string; label: string; icon: LucideIcon; end?: boolean }> = [
   { to: '/', label: 'Consultar', icon: MessageSquareText, end: true },
+  { to: '/borradores', label: 'Borradores', icon: FilePenLine },
   { to: '/biblioteca', label: 'Biblioteca', icon: BookOpen },
   { to: '/historial', label: 'Historial', icon: History },
 ];
 
 // Roadmap modules, shown so the lawyer knows what's coming.
 const UPCOMING: Array<{ label: string; icon: LucideIcon; phase: number }> = [
-  { label: 'Borradores de escritos', icon: FilePenLine, phase: 2 },
   { label: 'Clientes', icon: Users, phase: 3 },
   { label: 'Plazos', icon: CalendarClock, phase: 4 },
   { label: 'Expedientes', icon: FolderKanban, phase: 5 },
@@ -105,7 +105,7 @@ function MobileHeader() {
         <Brand />
       </div>
 
-      <nav aria-label="Principal" className="grid grid-cols-3 border-t border-white/10">
+      <nav aria-label="Principal" className="grid grid-cols-4 border-t border-white/10">
         {NAV.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}

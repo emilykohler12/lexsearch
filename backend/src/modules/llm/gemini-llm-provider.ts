@@ -2,22 +2,29 @@ import { randomBytes } from 'node:crypto';
 import {
   ApiError,
   FinishReason,
+  FunctionCallingConfigMode,
   GoogleGenAI,
   HarmBlockThreshold,
   HarmCategory,
   ThinkingLevel,
+  type Content,
   type GenerateContentResponse,
+  type Part,
 } from '@google/genai';
 import { z } from 'zod';
 import { UpstreamError } from '../../lib/errors.js';
 import type { Logger } from '../../lib/logger.js';
 import type {
+  AgentRunInput,
+  AgentRunResult,
+  AgentToolCall,
   AnswerBlock,
   AnswerCitation,
   GroundedAnswer,
   GroundedAnswerInput,
   GroundingDocument,
   LlmProvider,
+  LlmUsage,
 } from './llm-provider.js';
 import { locateQuote } from './quote-locator.js';
 
@@ -64,6 +71,12 @@ const BLOCKED_FINISH_REASONS = new Set<string>([
 const NO_QUOTES_NOTE =
   'Importante: en esta respuesta dejá vacío el campo "cita" de todas las citas; indicá solo el número de fragmento.';
 
+const OWN_WORDS_NOTE =
+  'Escribí la versión final con tus propias palabras: seguí la estructura de los modelos, pero sin copiar textualmente pasajes largos.';
+
+/** Calls the model may make in a single turn; extra ones get an error response. */
+const MAX_TOOL_CALLS_PER_ROUND = 4;
+
 // Busy model (503 and friends), quota used up (429) or model retired by Google (404):
 // worth trying the next model instead of failing the lawyer's query.
 const TRY_NEXT_MODEL_STATUSES = new Set([404, 429, 500, 502, 503, 504]);
@@ -86,6 +99,8 @@ interface GeminiProviderOptions {
   thinkingLevel?: GeminiThinkingLevel | undefined;
   /** Time each model gets to answer before moving on to the next one. */
   timeoutPerModelMs?: number;
+  /** Time for each step of an agent run (writing a whole draft takes longer than an answer). */
+  agentStepTimeoutMs?: number;
   logger: Logger;
   /** Injectable for tests. */
   client?: Pick<GoogleGenAI, 'models'>;
@@ -97,6 +112,7 @@ export class GeminiLlmProvider implements LlmProvider {
   private readonly fallbackModels: string[];
   private readonly thinkingLevel: GeminiThinkingLevel | undefined;
   private readonly timeoutPerModelMs: number;
+  private readonly agentStepTimeoutMs: number;
   private readonly client: Pick<GoogleGenAI, 'models'>;
   private readonly logger: Logger;
 
@@ -105,6 +121,7 @@ export class GeminiLlmProvider implements LlmProvider {
     this.fallbackModels = (options.fallbackModels ?? []).filter((m) => m && m !== options.model);
     this.thinkingLevel = options.thinkingLevel;
     this.timeoutPerModelMs = options.timeoutPerModelMs ?? 30_000;
+    this.agentStepTimeoutMs = options.agentStepTimeoutMs ?? 90_000;
     this.logger = options.logger;
     this.client =
       options.client ??
@@ -169,13 +186,8 @@ export class GeminiLlmProvider implements LlmProvider {
           },
         });
       } catch (error) {
-        const isLastModel = attempt === models.length - 1;
-        const reason = isTimeout(error)
-          ? 'timeout'
-          : error instanceof ApiError && TRY_NEXT_MODEL_STATUSES.has(error.status)
-            ? error.status
-            : null;
-        if (reason !== null && !isLastModel) {
+        const reason = fallbackReason(error);
+        if (reason !== null && attempt < models.length - 1) {
           this.logger.warn({ model, reason, next: models[attempt + 1] }, 'Gemini model unavailable, trying fallback');
           continue;
         }
@@ -183,6 +195,113 @@ export class GeminiLlmProvider implements LlmProvider {
       }
     }
     throw new Error('unreachable: no Gemini model configured');
+  }
+
+  async runAgent(input: AgentRunInput): Promise<AgentRunResult> {
+    const models = [this.model, ...this.fallbackModels];
+    for (const [attempt, model] of models.entries()) {
+      try {
+        return await this.runAgentWith(model, input);
+      } catch (error) {
+        const reason = fallbackReason(error);
+        if (reason !== null && attempt < models.length - 1) {
+          this.logger.warn({ model, reason, next: models[attempt + 1] }, 'Gemini model unavailable, restarting the agent on the fallback');
+          continue;
+        }
+        throw error instanceof UpstreamError ? error : toUpstreamError(error, model, this.logger);
+      }
+    }
+    throw new Error('unreachable: no Gemini model configured');
+  }
+
+  /** A whole agent run on one model: its reasoning signatures can't be carried to another model. */
+  private async runAgentWith(model: string, input: AgentRunInput): Promise<AgentRunResult> {
+    const functionDeclarations = input.tools.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      parametersJsonSchema: tool.parameters,
+    }));
+    const contents: Content[] = [{ role: 'user', parts: [{ text: input.userMessage }] }];
+    const toolCalls: AgentToolCall[] = [];
+    const usage: LlmUsage = { inputTokens: 0, outputTokens: 0 };
+    let recitationRetried = false;
+
+    for (let round = 0; ; round++) {
+      const toolsAllowed = round < input.maxToolRounds;
+      const response = await this.client.models.generateContent({
+        model,
+        contents,
+        config: {
+          systemInstruction: input.systemPrompt,
+          // Declared even when no longer allowed: the history contains calls to them.
+          tools: [{ functionDeclarations }],
+          toolConfig: {
+            functionCallingConfig: { mode: toolsAllowed ? FunctionCallingConfigMode.AUTO : FunctionCallingConfigMode.NONE },
+          },
+          safetySettings: SAFETY_SETTINGS,
+          abortSignal: AbortSignal.timeout(this.agentStepTimeoutMs),
+          ...(this.thinkingLevel &&
+            supportsThinkingLevel(model) && {
+              thinkingConfig: { thinkingLevel: THINKING_LEVELS[this.thinkingLevel] },
+            }),
+        },
+      });
+      usage.inputTokens += response.usageMetadata?.promptTokenCount ?? 0;
+      usage.outputTokens +=
+        (response.usageMetadata?.candidatesTokenCount ?? 0) + (response.usageMetadata?.thoughtsTokenCount ?? 0);
+
+      if (response.promptFeedback?.blockReason) throw refusal();
+      const finishReason = finishReasonOf(response);
+      if (finishReason && BLOCKED_FINISH_REASONS.has(finishReason)) throw refusal();
+      if (finishReason === FinishReason.RECITATION && !recitationRetried) {
+        // Copying a public text (e.g. a standard contract) too literally: ask for its own wording.
+        recitationRetried = true;
+        contents.push({ role: 'user', parts: [{ text: OWN_WORDS_NOTE }] });
+        round = Math.max(round, input.maxToolRounds - 1);
+        continue;
+      }
+
+      const calls = toolsAllowed ? (response.functionCalls ?? []) : [];
+      if (calls.length === 0) {
+        if (finishReason === FinishReason.MAX_TOKENS) {
+          throw new UpstreamError('LLM_TRUNCATED', 'La respuesta de Gemini quedó incompleta. Probá con un pedido más acotado.');
+        }
+        const text = (response.text ?? '').trim();
+        if (!text) throw new UpstreamError('LLM_BAD_RESPONSE', 'Gemini no devolvió una respuesta. Probá de nuevo.');
+        return { text, toolCalls, model: response.modelVersion ?? model, usage };
+      }
+
+      // Send the model's turn back exactly as it came: it carries the reasoning signatures Gemini requires.
+      const modelTurn = response.candidates?.[0]?.content;
+      if (modelTurn) contents.push(modelTurn);
+
+      const responses: Part[] = [];
+      for (const [index, call] of calls.entries()) {
+        const name = call.name ?? '';
+        const args = call.args ?? {};
+        const tool = input.tools.find((t) => t.name === name);
+        let result: Record<string, unknown>;
+        if (index >= MAX_TOOL_CALLS_PER_ROUND) {
+          result = { error: `Máximo ${MAX_TOOL_CALLS_PER_ROUND} herramientas por turno.` };
+          toolCalls.push({ tool: name, args, ok: false, error: 'skipped' });
+        } else if (!tool) {
+          result = { error: `La herramienta "${name}" no existe.` };
+          toolCalls.push({ tool: name, args, ok: false, error: 'unknown tool' });
+        } else {
+          try {
+            result = { resultado: await tool.execute(args) };
+            toolCalls.push({ tool: name, args, ok: true });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            result = { error: message };
+            toolCalls.push({ tool: name, args, ok: false, error: message });
+          }
+        }
+        // Every call gets an answer, even failed ones: Gemini expects one response per call.
+        responses.push({ functionResponse: { ...(call.id && { id: call.id }), name, response: result } });
+      }
+      contents.push({ role: 'user', parts: responses });
+    }
   }
 
   private parse(response: GenerateContentResponse): ModelAnswer {
@@ -286,6 +405,13 @@ export function toAnswerBlocks(
 /** Our per-model deadline (AbortSignal.timeout) surfaces from the SDK as an AbortError. */
 function isTimeout(error: unknown): boolean {
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError');
+}
+
+/** Why it is worth trying the next model (busy, out of quota, retired, too slow), or null. */
+function fallbackReason(error: unknown): 'timeout' | number | null {
+  if (isTimeout(error)) return 'timeout';
+  if (error instanceof ApiError && TRY_NEXT_MODEL_STATUSES.has(error.status)) return error.status;
+  return null;
 }
 
 /** `thinkingLevel` exists from Gemini 3 on; older models reject it. */

@@ -1,5 +1,5 @@
 import { Sparkles } from 'lucide-react';
-import { Fragment, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import type { AnswerBlock, AnswerCitation, AnswerSource } from '../../api/types';
 import { SourceCard } from './SourceCard';
 
@@ -19,15 +19,7 @@ function InlineText({ text }: { text: string }) {
   );
 }
 
-export function AnswerView({
-  blocks,
-  sources,
-  footer,
-}: {
-  blocks: AnswerBlock[];
-  sources: AnswerSource[];
-  footer?: ReactNode;
-}) {
+export function AnswerView({ blocks, sources }: { blocks: AnswerBlock[]; sources: AnswerSource[] }) {
   const [active, setActive] = useState<AnswerCitation | null>(null);
 
   const quotesBySource = useMemo(() => {
@@ -52,9 +44,9 @@ export function AnswerView({
   };
 
   return (
-    // Wide screens: answer on the left (stays in view), sources on the right.
-    <article className="grid gap-6 xl:grid-cols-2 xl:items-start">
-      <div className="card p-4 sm:p-6 xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">
+    // The answer takes the full width; the fragments it used go below.
+    <article className="space-y-6">
+      <div className="card p-4 sm:p-6">
         <p className="mb-3 flex items-center gap-2 text-xs font-semibold tracking-wide text-brass-700 uppercase">
           <Sparkles className="size-3.5" aria-hidden /> Respuesta basada en tu biblioteca
         </p>
@@ -88,18 +80,14 @@ export function AnswerView({
             );
           })}
         </div>
-        <p className="mt-5 border-t border-line pt-4 text-xs text-muted">
-          Borrador generado por IA a partir de fragmentos de tus documentos. Es una propuesta para tu revisión: verificá
-          siempre las fuentes citadas antes de usarlo. {footer}
-        </p>
       </div>
 
-      <div className="min-w-0 space-y-6">
-        {cited.length > 0 && (
-          <section aria-labelledby="sources-title" className="space-y-3">
-            <h2 id="sources-title" className="text-lg">
-              Fuentes citadas
-            </h2>
+      {cited.length > 0 && (
+        <section aria-labelledby="sources-title" className="space-y-3">
+          <h2 id="sources-title" className="text-lg">
+            Fuentes citadas
+          </h2>
+          <div className="grid items-start gap-3 xl:grid-cols-2">
             {cited.map((source) => (
               <SourceCard
                 key={source.number}
@@ -109,22 +97,22 @@ export function AnswerView({
                 activeQuote={active?.sourceNumber === source.number ? active : null}
               />
             ))}
-          </section>
-        )}
+          </div>
+        </section>
+      )}
 
-        {notCited.length > 0 && (
-          <details className="group">
-            <summary className="cursor-pointer py-2 text-sm text-muted hover:text-ink">
-              Otros fragmentos consultados que la respuesta no citó ({notCited.length})
-            </summary>
-            <div className="mt-3 space-y-3">
-              {notCited.map((source) => (
-                <SourceCard key={source.number} number={source.number} source={source} dimmed />
-              ))}
-            </div>
-          </details>
-        )}
-      </div>
+      {notCited.length > 0 && (
+        <details className="group">
+          <summary className="cursor-pointer py-2 text-sm text-muted hover:text-ink">
+            Otros fragmentos consultados que la respuesta no citó ({notCited.length})
+          </summary>
+          <div className="mt-3 grid items-start gap-3 xl:grid-cols-2">
+            {notCited.map((source) => (
+              <SourceCard key={source.number} number={source.number} source={source} dimmed collapsible />
+            ))}
+          </div>
+        </details>
+      )}
     </article>
   );
 }
