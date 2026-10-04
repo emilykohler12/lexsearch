@@ -14,17 +14,20 @@ Una sola aplicación backend con módulos internos bien separados (`documents`, 
 
 ## D3 · Embeddings locales (`Xenova/multilingual-e5-base`)
 
-- **Por qué:** los documentos de clientes están protegidos por secreto profesional. Indexar con un modelo local significa que la biblioteca completa **nunca** se envía a terceros; solo viajan a Claude los fragmentos relevantes de cada consulta. Además no tiene costo por uso ni requiere API key para empezar.
+- **Por qué:** los documentos de clientes están protegidos por secreto profesional. Indexar con un modelo local significa que la biblioteca completa **nunca** se envía a terceros; solo viajan al LLM los fragmentos relevantes de cada consulta. Además no tiene costo por uso ni requiere API key para empezar.
 - **Modelo:** multilingüe (buen desempeño en español), 768 dimensiones, versión cuantizada de ~280 MB que corre en CPU con ONNX (transformers.js). Usa los prefijos `query:` / `passage:` que requiere la familia e5.
 - **Costo:** calidad algo menor que los mejores modelos comerciales. Si en el uso real la búsqueda se queda corta, se puede cambiar el proveedor detrás de la interfaz `EmbeddingProvider`.
 - **Cambiar de modelo** implica: nueva dimensión en `schema.prisma` y en `EMBEDDING_DIMENSIONS`, una migración, y reprocesar todos los documentos (el modelo usado queda registrado en cada documento).
 
-## D4 · LLM: Claude, detrás de una interfaz propia
+## D4 · LLM: Gemini (Google), detrás de una interfaz propia
 
-- La decisión pendiente del documento técnico (sección 4.4) se resuelve a favor de **Claude (Anthropic)**: soporta uso de herramientas (necesario para los agentes de las fases 2+), ventana de contexto de 1M tokens, buena redacción en español jurídico, y su API no usa los datos enviados para entrenar por defecto.
-- Modelo por defecto `claude-opus-5`, configurable con `ANTHROPIC_MODEL`; profundidad de razonamiento configurable con `LLM_EFFORT` (por defecto `medium`, buen equilibrio de latencia y costo para responder sobre fragmentos provistos).
-- **Citas nativas:** cada fragmento se envía como un documento con citas habilitadas; la API devuelve el texto citado *extraído literalmente* del fragmento (no generado), con su posición. Eso permite resaltar la cita exacta y rastrear cada afirmación.
-- **Rechazos:** se habilita el *fallback* del lado del servidor (`fallbacks: "default"`), que reintenta con el modelo recomendado si un filtro de seguridad declinara una consulta legítima.
+- La decisión pendiente del documento técnico (sección 4.4) se resuelve a favor de **Gemini**: plan gratuito para practicar, modelos Flash rápidos y económicos, ventana de contexto de 1M tokens, uso de herramientas (necesario para los agentes de las fases 2+) y buena redacción en español.
+- **Modelo:** `gemini-3.5-flash-lite` con razonamiento `low`: responde en 2 o 3 segundos y, en las pruebas, con la misma calidad y citas verificadas que `gemini-3.5-flash`, que en cambio estaba congestionado (respuestas de 30 a 50 s y errores 503). Con el razonamiento por defecto, las respuestas tardaban unos 30 s sin mejorar sobre fragmentos provistos. Todo es configurable en `.env`.
+- **Modelos de respaldo:** los modelos más nuevos suelen saturarse (error 503) y Google retira modelos viejos con frecuencia (404; por ejemplo, la familia 2.5 ya no está disponible para cuentas nuevas). Ante 404, 429, 5xx o si un modelo no contesta en 30 s, se prueba el siguiente de `GEMINI_FALLBACK_MODELS` (por defecto `gemini-3.5-flash`). Los errores de la solicitud misma (400) no se ocultan detrás de un respaldo.
+- **Citas verificadas:** Gemini no tiene citas nativas sobre documentos provistos, así que responde con **salida estructurada** (JSON con esquema): bloques de texto, cada uno con el número de fragmento que lo respalda y una frase corta copiada textualmente. El servidor busca esa frase en el fragmento original (tolerando mayúsculas, espacios y comillas) y **solo la resalta si existe**; el texto resaltado se toma del fragmento, nunca de lo que escribió el modelo. Si la frase no aparece, se conserva la referencia al fragmento sin presentarla como cita textual.
+- **Recitación:** si Gemini corta la respuesta por reproducir textos públicos (por ejemplo, el artículo de una ley), se reintenta una vez pidiendo solo números de fragmento.
+- **Filtros de seguridad:** se configuran en `BLOCK_NONE` para acoso, odio, contenido sexual y peligroso, porque los expedientes pueden describir delitos en detalle y un bloqueo impediría trabajo profesional legítimo. Las protecciones propias del modelo siguen activas.
+- **Privacidad:** en el plan gratuito Google puede usar el contenido enviado para mejorar sus productos. Antes de procesar datos reales de clientes hay que activar la facturación del proyecto (ver también D12).
 - Toda la app habla con la interfaz `LlmProvider`; cambiar de proveedor es escribir otra implementación.
 
 ## D5 · Búsqueda híbrida con Reciprocal Rank Fusion

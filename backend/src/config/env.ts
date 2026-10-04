@@ -26,9 +26,14 @@ const envSchema = z.object({
   EMBEDDING_MODEL: z.string().default('Xenova/multilingual-e5-base'),
   MODELS_CACHE_DIR: z.string().default('.cache/models'),
 
-  ANTHROPIC_API_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
-  ANTHROPIC_MODEL: z.string().default('claude-opus-5'),
-  LLM_EFFORT: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('medium'),
+  GEMINI_API_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
+  GEMINI_MODEL: z.string().default('gemini-3.5-flash-lite'),
+  // Comma-separated; used in order when the main model is overloaded, out of quota, retired or too slow.
+  GEMINI_FALLBACK_MODELS: z
+    .string()
+    .default('gemini-3.5-flash')
+    .transform((value) => value.split(',').map((m) => m.trim()).filter(Boolean)),
+  GEMINI_THINKING_LEVEL: z.preprocess(emptyToUndefined, z.enum(['minimal', 'low', 'medium', 'high']).optional()),
 });
 
 export type Env = z.infer<typeof envSchema>;

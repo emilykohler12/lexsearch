@@ -112,7 +112,7 @@ export function buildOpenApiDocument() {
       '/api/rag/ask': {
         post: {
           tags: ['Consultas'],
-          summary: 'Respuesta redactada por Claude con citas exactas de la biblioteca',
+          summary: 'Respuesta redactada por la IA (Gemini) con citas verificadas de la biblioteca',
           requestBody: { required: true, ...json(jsonSchema(askBodySchema)) },
           responses: {
             200: { description: 'Respuesta en bloques con citas y las fuentes usadas' },

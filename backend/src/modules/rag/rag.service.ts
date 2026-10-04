@@ -99,7 +99,7 @@ export class RagService {
     if (!llm) {
       throw new ServiceUnavailableError(
         'LLM_NOT_CONFIGURED',
-        'Las respuestas con IA están desactivadas: falta configurar ANTHROPIC_API_KEY en el archivo .env (y reiniciar el servidor). La búsqueda en tu biblioteca sí funciona.',
+        'Las respuestas con IA están desactivadas: falta configurar GEMINI_API_KEY en el archivo .env (y reiniciar el servidor). La búsqueda en tu biblioteca sí funciona.',
       );
     }
     if ((await repository.countReadyDocuments()) === 0) {

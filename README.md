@@ -26,7 +26,7 @@ Las decisiones técnicas y su justificación están en [docs/decisiones.md](docs
 
 - **Biblioteca:** subís PDF (con texto), Word (.docx), .txt o .md, eligiendo el tipo (legislación, jurisprudencia, doctrina, modelo propio, escrito, otro). Cada documento se procesa en segundo plano: extracción de texto por página, fragmentación respetando artículos y cláusulas, e indexado. Detecta duplicados por contenido y avisa si un PDF está escaneado (sin texto).
 - **Búsqueda híbrida:** combina búsqueda *por significado* (vectores) con búsqueda *por palabras exactas* en español sin acentos (útil para "art. 245" o "Ley 20.744"). Filtra por tipo de documento.
-- **Respuestas con IA (Claude):** redacta la respuesta usando solo los fragmentos recuperados y marca cada afirmación con su fuente. Al hacer clic en una cita ves el texto exacto resaltado y podés abrir el PDF original en esa página.
+- **Respuestas con IA (Gemini):** redacta la respuesta usando solo los fragmentos recuperados y marca cada afirmación con su fuente. Antes de mostrar una cita, el servidor verifica que la frase exista textualmente en el fragmento. Al hacer clic en una cita ves ese texto resaltado y podés abrir el PDF original en esa página.
 - **Historial:** cada consulta queda registrada con su respuesta, las fuentes, el modelo y la versión del prompt.
 - **API documentada** en `http://localhost:4000/api/docs` (Swagger).
 
@@ -34,7 +34,7 @@ Las decisiones técnicas y su justificación están en [docs/decisiones.md](docs
 
 - **Node.js 24** (LTS) — `node --version`
 - **Docker Desktop** — para la base de datos PostgreSQL con pgvector
-- **Cuenta de Anthropic con API key** — opcional para empezar: sin ella la biblioteca y la búsqueda funcionan; solo se desactivan las respuestas redactadas por IA.
+- **API key de Gemini** (Google AI Studio) — opcional para empezar: sin ella la biblioteca y la búsqueda funcionan; solo se desactivan las respuestas redactadas por IA.
 
 ## Puesta en marcha
 
@@ -52,7 +52,7 @@ Todos los comandos se ejecutan en la carpeta del proyecto (`C:\Users\Emily Kohle
    cp .env.example .env
    ```
 
-3. **Abrir Docker Desktop** desde el menú Inicio y esperar a que diga *Engine running*.
+3. **Abrir Docker Desktop** desde el menú Inicio y esperar a que diga *Engine running*. No se abre solo al prender la computadora, salvo que actives *Settings → General → Start Docker Desktop when you sign in*.
 
 4. **Crear la base de datos y aplicar las migraciones:**
 
@@ -76,23 +76,25 @@ Todos los comandos se ejecutan en la carpeta del proyecto (`C:\Users\Emily Kohle
 
 Para detenerlo: `Ctrl + C` en la terminal. La base de datos sigue corriendo en Docker; para apagarla, `npm run db:down` (los datos se conservan).
 
-## Configurar Claude
+## Configurar Gemini
 
-1. Entrá a **https://console.anthropic.com** e iniciá sesión (o creá una cuenta).
-2. En **Billing**, cargá crédito (la API se paga por uso; una consulta típica cuesta aproximadamente entre USD 0,03 y 0,08 con el modelo por defecto).
-3. En **API Keys**, hacé clic en **Create Key**, ponele un nombre (por ejemplo `lexsearch-local`) y copiá la clave. Se muestra una sola vez.
-4. Abrí el archivo `.env` de la raíz del proyecto con un editor de texto y pegá la clave en la línea:
+1. Entrá a **https://aistudio.google.com/apikey** con tu cuenta de Google.
+2. Hacé clic en **Create API key**, elegí (o creá) un proyecto y copiá la clave.
+3. Abrí el archivo `.env` de la raíz del proyecto con un editor de texto y pegá la clave en la línea:
 
    ```
-   ANTHROPIC_API_KEY=pegá-acá-tu-clave
+   GEMINI_API_KEY=pegá-acá-tu-clave
    ```
 
-5. Guardá el archivo y reiniciá el sistema (`Ctrl + C` y otra vez `npm run dev`). Abajo a la izquierda de la interfaz, "Claude" debería aparecer en verde.
+4. Guardá el archivo y reiniciá el sistema (`Ctrl + C` y otra vez `npm run dev`). Abajo a la izquierda de la interfaz (o en "Estado" en el celular), "IA (Gemini)" debería aparecer en verde.
+
+> **Importante — privacidad.** Según los términos de la API de Gemini, en el **plan gratuito** Google puede usar lo que enviás (preguntas y fragmentos) para mejorar sus productos, y personas pueden revisarlo. Con la **facturación activada** en el proyecto, no lo usa con ese fin. Para probar con documentos ficticios alcanza el plan gratuito; **antes de usar documentos reales de clientes, activá la facturación** (en AI Studio: *Billing*). Conviene reconfirmar estas condiciones en los términos vigentes de Google.
 
 La clave es un secreto: el `.env` está excluido de git y nunca debe compartirse ni subirse al repositorio. Opciones relacionadas en `.env`:
 
-- `ANTHROPIC_MODEL` (por defecto `claude-opus-5`): el modelo que redacta las respuestas.
-- `LLM_EFFORT` (por defecto `medium`): cuánto razona el modelo antes de responder (`low` · `medium` · `high` · `xhigh` · `max`). Más alto suele ser más preciso, pero más lento y caro.
+- `GEMINI_MODEL` (por defecto `gemini-3.5-flash-lite`): el modelo que redacta las respuestas. Responde en 2 o 3 segundos.
+- `GEMINI_FALLBACK_MODELS` (por defecto `gemini-3.5-flash`): modelos de respaldo, separados por coma. Se usan si el principal está saturado, sin cupo, fue retirado por Google o no contesta en 30 segundos.
+- `GEMINI_THINKING_LEVEL` (por defecto `low`): cuánto razona el modelo antes de responder (`minimal` · `low` · `medium` · `high`). Más alto puede ayudar en consultas complejas, pero es bastante más lento.
 
 ## Comandos útiles
 
@@ -124,7 +126,7 @@ lexsearch/
 │   │       ├── documents/    Biblioteca: subida, extracción, fragmentación, indexado
 │   │       ├── embeddings/   Modelo local de embeddings
 │   │       ├── rag/          Búsqueda híbrida y respuestas con citas
-│   │       ├── llm/          Proveedor de IA (Claude) detrás de una interfaz
+│   │       ├── llm/          Proveedor de IA (Gemini) detrás de una interfaz
 │   │       ├── interactions/ Historial de interacciones con la IA
 │   │       └── health/       Estado del sistema
 │   └── tests/                Tests unitarios y de integración
@@ -139,11 +141,11 @@ Cada módulo del backend sigue la misma separación de capas: `routes → contro
 ## Cómo funciona una consulta
 
 1. **Al subir un documento:** se guarda el original con un nombre aleatorio → se extrae el texto por página → se divide en fragmentos de ~1.200 caracteres respetando párrafos → cada fragmento se convierte en un vector con un modelo que corre en tu computadora → se guarda en PostgreSQL (pgvector).
-2. **Al preguntar:** la pregunta se convierte en vector → se buscan los fragmentos más parecidos por significado y por palabras → se combinan ambos rankings → los 8 mejores se envían a Claude como documentos citables → Claude responde citando el texto exacto de cada uno.
+2. **Al preguntar:** la pregunta se convierte en vector → se buscan los fragmentos más parecidos por significado y por palabras → se combinan ambos rankings → los 8 mejores se envían a Gemini → Gemini responde en bloques, indicando para cada uno el fragmento que lo respalda y una frase copiada textualmente → el servidor verifica cada frase contra el fragmento original y solo resalta las que existen de verdad.
 
 ## Privacidad y seguridad
 
-- Los documentos completos **no salen de tu computadora**: el indexado usa un modelo local. A Claude solo viajan la pregunta y los fragmentos relevantes de cada consulta. Según la documentación de Anthropic, los datos enviados por API no se usan para entrenar modelos por defecto (conviene reconfirmarlo en su política vigente).
+- Los documentos completos **no salen de tu computadora**: el indexado usa un modelo local. A Gemini solo viajan la pregunta y los fragmentos relevantes de cada consulta. Con el plan gratuito de la API, Google puede usar ese contenido para mejorar sus productos: activá la facturación antes de trabajar con datos reales de clientes (ver «Configurar Gemini»).
 - La API y la base escuchan solo en `127.0.0.1`: no son accesibles desde otras computadoras de la red.
 - Los logs no registran contenido de documentos, preguntas ni respuestas (solo ids, cantidades y tiempos). Las consultas viajan en el cuerpo de la solicitud, nunca en la URL.
 - El contenido de los documentos se trata como **datos, nunca como instrucciones** (mitigación de inyección de prompt), y cada afirmación de la IA debe poder rastrearse a su fuente.
@@ -157,7 +159,11 @@ Cada módulo del backend sigue la misma separación de capas: `routes → contro
 2. En el Explorador de archivos, escribí `%LOCALAPPDATA%` en la barra de direcciones.
 3. Renombrá la carpeta `docker-secrets-engine` a `docker-secrets-engine.old` (si existe).
 4. Dentro de la carpeta `Docker`, renombrá `run` a `run.old` (si existe).
-5. Abrí Docker Desktop **desde el menú Inicio** (no desde la terminal de Claude).
+5. Abrí Docker Desktop **desde el menú Inicio**.
+
+**"Gemini no está disponible en este momento" o "límite de uso".** El modelo está saturado o se agotó el cupo (en el plan gratuito es bajo). La app ya prueba sola el modelo de respaldo (`GEMINI_FALLBACK_MODELS`); si el error sigue, esperá unos minutos o agregá otro modelo de respaldo. La lista de modelos disponibles está en Google AI Studio.
+
+**"El modelo … ya no está disponible".** Google retira modelos viejos con frecuencia. Cambiá `GEMINI_MODEL` en `.env` por uno vigente (por ejemplo, el Flash más nuevo) y reiniciá.
 
 **"El puerto 5180 / 4000 / 5433 está en uso".** Otro programa lo está usando. Cerralo, o cambiá el puerto en `.env` (`PORT`, `POSTGRES_PORT` + `DATABASE_URL`) y en `frontend/vite.config.ts`.
 

@@ -8,7 +8,7 @@ import { PROMPTS_DIR } from '../../config/paths.js';
  * interaction log always records which version produced each answer.
  */
 export const PROMPT_VERSIONS = {
-  ragAnswer: 'rag-answer.v1',
+  ragAnswer: 'rag-answer.v2',
 } as const;
 
 export interface Prompt {

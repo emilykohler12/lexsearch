@@ -73,7 +73,11 @@ export function AnswerView({
                       type="button"
                       onClick={() => focus(citation)}
                       className="min-w-6 rounded bg-brass-100 px-1.5 py-0.5 text-xs font-semibold text-brass-700 hover:bg-brass-500 hover:text-white sm:min-w-0 sm:text-[11px]"
-                      title={`Fuente ${citation.sourceNumber}: «${citation.citedText.slice(0, 140)}${citation.citedText.length > 140 ? '…' : ''}»`}
+                      title={
+                        citation.citedText
+                          ? `Fuente ${citation.sourceNumber}: «${citation.citedText.slice(0, 140)}${citation.citedText.length > 140 ? '…' : ''}»`
+                          : `Fuente ${citation.sourceNumber}`
+                      }
                       aria-label={`Ver fuente ${citation.sourceNumber}`}
                     >
                       {citation.sourceNumber}

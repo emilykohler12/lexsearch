@@ -171,7 +171,7 @@ function useSystemStatus() {
                   : 'cargando…',
           },
           {
-            label: 'Claude',
+            label: 'IA (Gemini)',
             state: health.llm.configured ? 'ok' : 'warn',
             detail: health.llm.configured ? health.llm.model : 'falta API key',
           },

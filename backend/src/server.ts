@@ -5,7 +5,7 @@ import { logger } from './lib/logger.js';
 import { createPrismaClient } from './lib/prisma.js';
 import { EMBEDDING_DIMENSIONS } from './modules/embeddings/embedding-provider.js';
 import { LocalEmbeddingProvider } from './modules/embeddings/local-embedding-provider.js';
-import { AnthropicLlmProvider } from './modules/llm/anthropic-llm-provider.js';
+import { GeminiLlmProvider } from './modules/llm/gemini-llm-provider.js';
 
 const db = createPrismaClient(env.DATABASE_URL);
 const storage = new FileStorage(storageDir);
@@ -18,11 +18,12 @@ const embeddings = new LocalEmbeddingProvider({
   logger,
 });
 
-const llm = env.ANTHROPIC_API_KEY
-  ? new AnthropicLlmProvider({
-      apiKey: env.ANTHROPIC_API_KEY,
-      model: env.ANTHROPIC_MODEL,
-      effort: env.LLM_EFFORT,
+const llm = env.GEMINI_API_KEY
+  ? new GeminiLlmProvider({
+      apiKey: env.GEMINI_API_KEY,
+      model: env.GEMINI_MODEL,
+      fallbackModels: env.GEMINI_FALLBACK_MODELS,
+      thinkingLevel: env.GEMINI_THINKING_LEVEL,
       logger,
     })
   : null;
@@ -40,7 +41,7 @@ const { app, queue, documentsService } = createApp({
 const server = app.listen(env.PORT, '127.0.0.1', () => {
   logger.info(`LexSearch API escuchando en http://localhost:${env.PORT} (docs: /api/docs)`);
   if (!llm) {
-    logger.warn('ANTHROPIC_API_KEY no configurada: la búsqueda funciona, las respuestas con IA quedan desactivadas');
+    logger.warn('GEMINI_API_KEY no configurada: la búsqueda funciona, las respuestas con IA quedan desactivadas');
   }
 });
 

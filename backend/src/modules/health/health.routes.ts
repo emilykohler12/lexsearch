@@ -9,7 +9,7 @@ interface HealthDeps {
   llm: LlmProvider | null;
 }
 
-/** Lets the UI tell the lawyer what works right now (e.g. "falta la API key de Claude"). */
+/** Lets the UI tell the lawyer what works right now (e.g. "falta la API key de Gemini"). */
 export function healthRouter({ db, embeddings, llm }: HealthDeps) {
   const router = Router();
   router.get('/', async (_req, res) => {

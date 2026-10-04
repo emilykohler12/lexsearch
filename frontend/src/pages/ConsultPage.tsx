@@ -73,8 +73,8 @@ export function ConsultPage() {
         )}
         {!llmConfigured && (
           <Alert tone="warning">
-            Las respuestas redactadas por IA están desactivadas porque falta configurar la API key de Claude (ver el
-            README, sección «Configurar Claude»). Mientras tanto podés usar <strong>Buscar</strong> para encontrar los
+            Las respuestas redactadas por IA están desactivadas porque falta configurar la API key de Gemini (ver el
+            README, sección «Configurar Gemini»). Mientras tanto podés usar <strong>Buscar</strong> para encontrar los
             fragmentos relevantes.
           </Alert>
         )}

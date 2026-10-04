@@ -94,7 +94,7 @@ describe('POST /api/rag/ask', () => {
       status: 'SUCCESS',
     });
     const detail = await request(ctx.app).get(`/api/interactions/${res.body.interactionId}`);
-    expect(detail.body.interaction).toMatchObject({ promptVersion: 'rag-answer.v1', inputTokens: 1000 });
+    expect(detail.body.interaction).toMatchObject({ promptVersion: 'rag-answer.v2', inputTokens: 1000 });
   });
 
   it('refuses politely when the library is empty', async () => {
