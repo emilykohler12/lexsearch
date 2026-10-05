@@ -1,4 +1,5 @@
-import { BrowserRouter, Link, Route, Routes } from 'react-router';
+import { createBrowserRouter, Link } from 'react-router';
+import { RouterProvider } from 'react-router/dom';
 import { Layout } from './components/Layout';
 import { ConsultPage } from './pages/ConsultPage';
 import { DraftDetailPage } from './pages/DraftDetailPage';
@@ -6,30 +7,33 @@ import { DraftsPage } from './pages/DraftsPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LibraryPage } from './pages/LibraryPage';
 
-export function App() {
+function NotFound() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route index element={<ConsultPage />} />
-          <Route path="borradores" element={<DraftsPage />} />
-          <Route path="borradores/:id" element={<DraftDetailPage />} />
-          <Route path="biblioteca" element={<LibraryPage />} />
-          <Route path="historial" element={<HistoryPage />} />
-          <Route path="historial/:id" element={<HistoryPage />} />
-          <Route
-            path="*"
-            element={
-              <p className="text-sm text-muted">
-                Esta página no existe.{' '}
-                <Link to="/" className="underline">
-                  Ir a Consultar
-                </Link>
-              </p>
-            }
-          />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <p className="text-sm text-muted">
+      Esta página no existe.{' '}
+      <Link to="/" className="underline">
+        Ir a Consultar
+      </Link>
+    </p>
   );
+}
+
+// A data router: needed to warn before leaving a draft with unsaved changes (useBlocker).
+const router = createBrowserRouter([
+  {
+    element: <Layout />,
+    children: [
+      { index: true, element: <ConsultPage /> },
+      { path: 'borradores', element: <DraftsPage /> },
+      { path: 'borradores/:id', element: <DraftDetailPage /> },
+      { path: 'biblioteca', element: <LibraryPage /> },
+      { path: 'historial', element: <HistoryPage /> },
+      { path: 'historial/:id', element: <HistoryPage /> },
+      { path: '*', element: <NotFound /> },
+    ],
+  },
+]);
+
+export function App() {
+  return <RouterProvider router={router} />;
 }

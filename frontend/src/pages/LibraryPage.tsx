@@ -9,10 +9,7 @@ export function LibraryPage() {
 
   return (
     <>
-      <PageHeader
-        title="Biblioteca"
-        description="Leyes, jurisprudencia, doctrina y tus propios modelos. Todo lo que subas acá se puede consultar en segundos, con la cita exacta de la fuente."
-      />
+      <PageHeader title="Biblioteca" />
       <div className="space-y-6">
         <UploadPanel />
         {isPending && (

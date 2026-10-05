@@ -1,18 +1,13 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, Download, ExternalLink, Eye, Pencil, Trash2, type LucideIcon } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Check, Copy, Download, ExternalLink, Eye, Pencil, Save, Trash2, type LucideIcon } from 'lucide-react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { Link, useBlocker, useNavigate, useParams } from 'react-router';
 import { api } from '../api/client';
-import { queryKeys, useDeleteDraft, useDraft, useUpdateDraft } from '../api/hooks';
+import { useDeleteDraft, useDraft, useUpdateDraft } from '../api/hooks';
 import type { Draft, DraftSource } from '../api/types';
 import { Alert, Spinner } from '../components/ui';
 import { countPlaceholders, toPlainText } from '../features/drafts/markdown';
 import { MarkdownPreview } from '../features/drafts/MarkdownPreview';
 import { DRAFT_TYPE_LABELS, formatDate, formatPages, plural } from '../lib/format';
-
-/** Pause in typing after which changes are saved; longer while the server keeps failing. */
-const AUTOSAVE_DELAY_MS = 1_000;
-const RETRY_DELAY_MS = 10_000;
 
 type Mode = 'preview' | 'edit';
 const MODES: Array<{ value: Mode; label: string; icon: LucideIcon }> = [
@@ -64,72 +59,66 @@ export function DraftDetailPage() {
 
 function DraftEditor({ draft }: { draft: Draft }) {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>('preview');
   const [title, setTitle] = useState(draft.title);
   const [content, setContent] = useState(draft.content);
   const [copied, setCopied] = useState(false);
-  const {
-    mutate: save,
-    mutateAsync: saveNow,
-    isPending: saving,
-    isSuccess: savedOnce,
-    isError: saveFailed,
-    error: saveError,
-  } = useUpdateDraft();
+  const { mutateAsync: saveDraft, isPending: saving, isError: saveFailed, error: saveError } = useUpdateDraft();
   const remove = useDeleteDraft();
-  const deleted = useRef(false);
-  const unsaved = useRef<DraftChanges | null>(null);
+  // Set when the page is left on purpose (after deleting), so the unsaved-changes warning stays quiet.
+  const leaving = useRef(false);
 
   const changes = pendingChanges(draft, title, content);
-  const busy = saving || changes !== null;
+  const dirty = changes !== null;
   const placeholders = countPlaceholders(content);
 
-  // Autosave once typing pauses.
-  useEffect(() => {
-    if (saving) return;
-    const next = pendingChanges(draft, title, content);
-    if (!next) return;
-    const timer = setTimeout(() => save({ id: draft.id, ...next }), saveFailed ? RETRY_DELAY_MS : AUTOSAVE_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [draft, title, content, saving, saveFailed, save]);
+  /** Saves the pending changes; false when it could not (the error shows above the editor). */
+  const save = async (): Promise<boolean> => {
+    if (!changes) return true;
+    if (saving) return false;
+    try {
+      await saveDraft({ id: draft.id, ...changes });
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
-  // Changes typed just before leaving the page are saved on the way out.
-  useEffect(() => {
-    unsaved.current = pendingChanges(draft, title, content);
+  // Ctrl + S (⌘ + S on a Mac) saves the draft instead of opening the browser's "Save page" dialog.
+  const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      void save();
+    }
   });
   useEffect(() => {
-    const id = draft.id;
-    return () => {
-      const last = unsaved.current;
-      if (!last || deleted.current) return;
-      void api
-        .updateDraft(id, last)
-        .then((saved) => {
-          queryClient.setQueryData(queryKeys.draft(id), saved);
-          return queryClient.invalidateQueries({ queryKey: queryKeys.drafts, exact: true });
-        })
-        .catch(() => undefined);
-    };
-  }, [draft.id, queryClient]);
+    const listener = (event: KeyboardEvent) => onKeyDown(event);
+    window.addEventListener('keydown', listener);
+    return () => window.removeEventListener('keydown', listener);
+  }, []);
 
-  // Closing the tab during the autosave pause would lose the last keystrokes.
+  // Going to another section with unsaved changes asks first...
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      dirty && !leaving.current && currentLocation.pathname !== nextLocation.pathname,
+  );
   useEffect(() => {
-    if (!busy) return;
+    if (blocker.state !== 'blocked') return;
+    if (window.confirm('Tenés cambios sin guardar en este borrador. ¿Salir sin guardarlos?')) blocker.proceed();
+    else blocker.reset();
+  }, [blocker]);
+
+  // ...and so does closing or reloading the tab.
+  useEffect(() => {
+    if (!dirty && !saving) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [busy]);
+  }, [dirty, saving]);
 
+  // The Word file is made from the saved draft, so pending changes are saved first.
   const downloadWord = async () => {
-    if (changes) {
-      try {
-        await saveNow({ id: draft.id, ...changes });
-      } catch {
-        return; // the save error is already on screen
-      }
-    }
-    startDownload(api.draftDocxUrl(draft.id));
+    if (await save()) startDownload(api.draftDocxUrl(draft.id));
   };
 
   const copy = async () => {
@@ -144,11 +133,11 @@ function DraftEditor({ draft }: { draft: Draft }) {
 
   const confirmDelete = () => {
     if (!window.confirm(`¿Eliminar el borrador «${draft.title}»? No se puede deshacer.`)) return;
-    deleted.current = true;
+    leaving.current = true;
     remove.mutate(draft.id, {
       onSuccess: () => navigate('/borradores', { replace: true }),
       onError: () => {
-        deleted.current = false;
+        leaving.current = false;
       },
     });
   };
@@ -166,6 +155,7 @@ function DraftEditor({ draft }: { draft: Draft }) {
             if (e.key === 'Enter') {
               e.preventDefault();
               e.currentTarget.blur();
+              void save();
             }
           }}
           onBlur={() => {
@@ -181,19 +171,6 @@ function DraftEditor({ draft }: { draft: Draft }) {
               {plural(placeholders, 'dato por completar', 'datos por completar')}
             </span>
           )}
-          <span aria-live="polite" className="inline-flex items-center gap-1">
-            {busy ? (
-              <>
-                <Spinner className="size-3" /> Guardando…
-              </>
-            ) : (
-              savedOnce && (
-                <>
-                  <Check className="size-3.5 text-emerald-700" aria-hidden /> Cambios guardados
-                </>
-              )
-            )}
-          </span>
         </p>
       </header>
 
@@ -221,10 +198,27 @@ function DraftEditor({ draft }: { draft: Draft }) {
               </button>
             ))}
           </div>
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+            {(mode === 'edit' || dirty) && (
+              <button
+                type="button"
+                className="btn-primary min-h-10 sm:min-h-0"
+                onClick={() => void save()}
+                disabled={!dirty || saving}
+              >
+                {saving ? (
+                  <Spinner />
+                ) : dirty ? (
+                  <Save className="size-4" aria-hidden />
+                ) : (
+                  <Check className="size-4" aria-hidden />
+                )}
+                {saving ? 'Guardando…' : dirty ? 'Guardar' : 'Guardado'}
+              </button>
+            )}
             <button type="button" className="btn-secondary min-h-10 sm:min-h-0" onClick={() => void copy()}>
               {copied ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
-              {copied ? 'Copiado' : 'Copiar'}
+              <span className="max-sm:sr-only">{copied ? 'Copiado' : 'Copiar'}</span>
             </button>
             <button
               type="button"
