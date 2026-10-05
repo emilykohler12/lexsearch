@@ -50,6 +50,9 @@
 @utility btn-secondary {
   @apply btn border border-line bg-white text-ink hover:bg-paper;
 }
+@utility btn-danger {
+  @apply btn bg-red-700 text-white hover:bg-red-800;
+}
 @utility btn-ghost {
   @apply btn px-2 py-1 text-muted hover:bg-black/5 hover:text-ink;
 }

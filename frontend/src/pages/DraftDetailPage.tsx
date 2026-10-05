@@ -4,7 +4,7 @@ import { Link, useBlocker, useNavigate, useParams } from 'react-router';
 import { api } from '../api/client';
 import { useDeleteDraft, useDraft, useUpdateDraft } from '../api/hooks';
 import type { Draft, DraftSource } from '../api/types';
-import { Alert, Spinner } from '../components/ui';
+import { Alert, Dialog, Spinner } from '../components/ui';
 import { countPlaceholders, toPlainText } from '../features/drafts/markdown';
 import { MarkdownPreview } from '../features/drafts/MarkdownPreview';
 import { DRAFT_TYPE_LABELS, formatDate, formatPages, plural } from '../lib/format';
@@ -63,6 +63,7 @@ function DraftEditor({ draft }: { draft: Draft }) {
   const [title, setTitle] = useState(draft.title);
   const [content, setContent] = useState(draft.content);
   const [copied, setCopied] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const { mutateAsync: saveDraft, isPending: saving, isError: saveFailed, error: saveError } = useUpdateDraft();
   const remove = useDeleteDraft();
   // Set when the page is left on purpose (after deleting), so the unsaved-changes warning stays quiet.
@@ -97,18 +98,19 @@ function DraftEditor({ draft }: { draft: Draft }) {
     return () => window.removeEventListener('keydown', listener);
   }, []);
 
-  // Going to another section with unsaved changes asks first...
+  // Going to another section with unsaved changes asks first (in the dialog at the end)...
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
       dirty && !leaving.current && currentLocation.pathname !== nextLocation.pathname,
   );
-  useEffect(() => {
+  const saveAndLeave = async () => {
+    const saved = await save();
     if (blocker.state !== 'blocked') return;
-    if (window.confirm('Tenés cambios sin guardar en este borrador. ¿Salir sin guardarlos?')) blocker.proceed();
-    else blocker.reset();
-  }, [blocker]);
+    if (saved) blocker.proceed();
+    else blocker.reset(); // stay: the save error is shown above the editor
+  };
 
-  // ...and so does closing or reloading the tab.
+  // ...and so does closing or reloading the tab (that question is the browser's own).
   useEffect(() => {
     if (!dirty && !saving) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -131,13 +133,13 @@ function DraftEditor({ draft }: { draft: Draft }) {
     }
   };
 
-  const confirmDelete = () => {
-    if (!window.confirm(`¿Eliminar el borrador «${draft.title}»? No se puede deshacer.`)) return;
+  const deleteDraft = () => {
     leaving.current = true;
     remove.mutate(draft.id, {
       onSuccess: () => navigate('/borradores', { replace: true }),
       onError: () => {
         leaving.current = false;
+        setConfirmingDelete(false);
       },
     });
   };
@@ -233,7 +235,7 @@ function DraftEditor({ draft }: { draft: Draft }) {
             <button
               type="button"
               className="btn-icon hover:text-red-700"
-              onClick={confirmDelete}
+              onClick={() => setConfirmingDelete(true)}
               disabled={remove.isPending}
               title="Eliminar borrador"
             >
@@ -262,6 +264,60 @@ function DraftEditor({ draft }: { draft: Draft }) {
       </div>
 
       <DraftSources draft={draft} />
+
+      <Dialog
+        open={blocker.state === 'blocked'}
+        title="Tenés cambios sin guardar"
+        onClose={() => blocker.reset?.()}
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn-secondary min-h-11 sm:min-h-0"
+              data-autofocus
+              onClick={() => blocker.reset?.()}
+            >
+              Seguir editando
+            </button>
+            <button type="button" className="btn-secondary min-h-11 sm:min-h-0" onClick={() => blocker.proceed?.()}>
+              Salir sin guardar
+            </button>
+            <button
+              type="button"
+              className="btn-primary min-h-11 sm:min-h-0"
+              onClick={() => void saveAndLeave()}
+              disabled={saving}
+            >
+              {saving && <Spinner />}
+              Guardar y salir
+            </button>
+          </>
+        }
+      />
+
+      <Dialog
+        open={confirmingDelete}
+        title="¿Eliminar este borrador?"
+        onClose={() => setConfirmingDelete(false)}
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn-secondary min-h-11 sm:min-h-0"
+              data-autofocus
+              onClick={() => setConfirmingDelete(false)}
+            >
+              Cancelar
+            </button>
+            <button type="button" className="btn-danger min-h-11 sm:min-h-0" onClick={deleteDraft} disabled={remove.isPending}>
+              {remove.isPending && <Spinner />}
+              Eliminar
+            </button>
+          </>
+        }
+      >
+        «{draft.title}» se elimina definitivamente.
+      </Dialog>
     </div>
   );
 }

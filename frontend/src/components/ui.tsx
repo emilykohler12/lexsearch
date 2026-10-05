@@ -1,5 +1,5 @@
 import { CircleCheck, CircleX, Info, LoaderCircle, TriangleAlert, X } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
 import type { DocumentCategory, DocumentStatus } from '../api/types';
 import { CATEGORY_LABELS, STATUS_LABELS } from '../lib/format';
 
@@ -42,6 +42,61 @@ export function Alert({
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * A question with LexSearch's look, instead of the browser's confirm() box. Escape or a click
+ * outside the box calls onClose; the button marked data-autofocus gets the focus when it opens.
+ */
+export function Dialog({
+  open,
+  title,
+  children,
+  actions,
+  onClose,
+}: {
+  open: boolean;
+  title: string;
+  children?: ReactNode;
+  actions: ReactNode;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    if (open && !dialog.open) {
+      dialog.showModal();
+      dialog.querySelector<HTMLElement>('[data-autofocus]')?.focus();
+    } else if (!open && dialog.open) {
+      dialog.close();
+    }
+  }, [open]);
+
+  return (
+    <dialog
+      ref={ref}
+      aria-labelledby={titleId}
+      onCancel={(event) => {
+        event.preventDefault(); // Escape: the page closes it through `open`
+        onClose();
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-line bg-white p-0 text-ink shadow-xl backdrop:bg-navy-950/50"
+    >
+      <div className="p-5 sm:p-6">
+        <h2 id={titleId} className="text-lg leading-snug">
+          {title}
+        </h2>
+        {children && <div className="mt-2 text-sm text-muted">{children}</div>}
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">{actions}</div>
+      </div>
+    </dialog>
   );
 }
 

@@ -3,13 +3,14 @@ import { useMemo, useState } from 'react';
 import { api } from '../../api/client';
 import { useDeleteDocument, useReprocessDocument, useUpdateDocument } from '../../api/hooks';
 import type { DocumentCategory, LibraryDocument } from '../../api/types';
-import { Alert, CategoryBadge, StatusBadge } from '../../components/ui';
+import { Alert, CategoryBadge, Dialog, Spinner, StatusBadge } from '../../components/ui';
 import { CATEGORIES, CATEGORY_LABELS, formatBytes, formatDate, plural } from '../../lib/format';
 
 export function DocumentsTable({ documents }: { documents: LibraryDocument[] }) {
   const [filter, setFilter] = useState('');
   const [category, setCategory] = useState<DocumentCategory | ''>('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [toDelete, setToDelete] = useState<LibraryDocument | null>(null);
   const remove = useDeleteDocument();
   const reprocess = useReprocessDocument();
 
@@ -24,11 +25,8 @@ export function DocumentsTable({ documents }: { documents: LibraryDocument[] }) 
 
   const actionError = remove.error ?? reprocess.error;
 
-  const confirmDelete = (document: LibraryDocument) => {
-    if (window.confirm(`¿Eliminar «${document.title}» de tu biblioteca? Se borra el archivo y su índice de búsqueda.`)) {
-      remove.mutate(document.id);
-    }
-  };
+  const deleteDocument = (document: LibraryDocument) =>
+    remove.mutate(document.id, { onSettled: () => setToDelete(null) });
 
   return (
     <section className="card overflow-hidden" aria-labelledby="documents-title">
@@ -132,7 +130,7 @@ export function DocumentsTable({ documents }: { documents: LibraryDocument[] }) 
                   <button
                     type="button"
                     className="btn-icon hover:text-red-700"
-                    onClick={() => confirmDelete(document)}
+                    onClick={() => setToDelete(document)}
                     title="Eliminar"
                   >
                     <Trash2 className="size-4" aria-hidden />
@@ -144,6 +142,35 @@ export function DocumentsTable({ documents }: { documents: LibraryDocument[] }) 
           )}
         </ul>
       )}
+
+      <Dialog
+        open={toDelete !== null}
+        title="¿Eliminar este documento?"
+        onClose={() => setToDelete(null)}
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn-secondary min-h-11 sm:min-h-0"
+              data-autofocus
+              onClick={() => setToDelete(null)}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn-danger min-h-11 sm:min-h-0"
+              onClick={() => toDelete && deleteDocument(toDelete)}
+              disabled={remove.isPending}
+            >
+              {remove.isPending && <Spinner />}
+              Eliminar
+            </button>
+          </>
+        }
+      >
+        «{toDelete?.title}» se borra de tu biblioteca, junto con su archivo y su índice de búsqueda.
+      </Dialog>
     </section>
   );
 }
