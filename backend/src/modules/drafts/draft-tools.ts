@@ -1,4 +1,5 @@
-import type { DocumentCategory } from '../../generated/prisma/client.js';
+import type { Client, DocumentCategory } from '../../generated/prisma/client.js';
+import { PERSON_TYPES, PRACTICE_AREAS, parseChecklist } from '../clients/clients.schemas.js';
 import type { DocumentTextReader } from '../documents/document-text.js';
 import { CATEGORY_LABELS } from '../documents/documents.schemas.js';
 import type { AgentTool } from '../llm/llm-provider.js';
@@ -9,6 +10,8 @@ const CATEGORY_CODES = Object.keys(CATEGORY_LABELS) as DocumentCategory[];
 const FRAGMENTS_PER_SEARCH = 6;
 /** Long enough for any model contract or brief; avoids sending a whole code of law. */
 const MAX_DOCUMENT_CHARS = 40_000;
+/** The notes of the first meeting can be a long transcript; the agent gets the beginning. */
+const MAX_CLIENT_NOTES_CHARS = 12_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const isCategory = (value: unknown): value is DocumentCategory =>
@@ -49,11 +52,53 @@ interface DraftToolsDeps {
   collector: SourceCollector;
   /** Document types chosen by the lawyer; used when the agent doesn't pick its own. */
   defaultCategories?: DocumentCategory[] | undefined;
+  /** The client the draft is for: the agent can read this file, and no other. */
+  client?: Client | null | undefined;
 }
 
-/** What the drafting agent can do with the lawyer's library. */
+/** Drops empty values so the agent only sees what is really known. */
+function compact<T extends Record<string, unknown>>(values: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(values).filter(([, value]) => {
+      if (value === '' || value === null || value === undefined) return false;
+      if (Array.isArray(value)) return value.length > 0;
+      if (typeof value === 'object') return Object.keys(value).length > 0;
+      return true;
+    }),
+  ) as Partial<T>;
+}
+
+/** The client file as the agent reads it. */
+export function clientCard(client: Client) {
+  const checklist = parseChecklist(client.checklist);
+  const caso = compact({
+    area_de_practica: client.practiceArea ? PRACTICE_AREAS[client.practiceArea as keyof typeof PRACTICE_AREAS] : '',
+    resumen_del_conflicto: client.conflictSummary,
+    pretension: client.claim,
+    documentacion: checklist.map((item) => ({ documento: item.text, reunida: item.done })),
+    notas_de_la_primera_reunion: client.meetingNotes.slice(0, MAX_CLIENT_NOTES_CHARS),
+  });
+  return compact({
+    cliente: compact({
+      nombre: client.fullName,
+      tipo_de_persona: PERSON_TYPES[client.personType as keyof typeof PERSON_TYPES],
+      documento: client.documentNumber,
+      email: client.email,
+      telefono: client.phone,
+      domicilio: client.address,
+    }),
+    contraparte: compact({
+      nombre: client.counterpartyName,
+      documento: client.counterpartyDocument,
+      domicilio: client.counterpartyAddress,
+    }),
+    caso,
+  });
+}
+
+/** What the drafting agent can do with the lawyer's library (and the client's file, if one was chosen). */
 export function createDraftTools(deps: DraftToolsDeps): AgentTool[] {
-  return [
+  const tools: AgentTool[] = [
     {
       name: 'buscar_en_biblioteca',
       description:
@@ -125,4 +170,33 @@ export function createDraftTools(deps: DraftToolsDeps): AgentTool[] {
       },
     },
   ];
+
+  const { client } = deps;
+  if (client) {
+    tools.push({
+      name: 'leer_ficha_cliente',
+      description:
+        'Lee la ficha del cliente para quien se redacta el documento: sus datos, los de la contraparte, ' +
+        'el resumen del conflicto, lo que pretende y las notas de la primera reunión.',
+      parameters: {
+        type: 'object',
+        properties: {
+          cliente_id: {
+            type: 'string',
+            description: 'El cliente_id que figura en el pedido del abogado.',
+          },
+        },
+        required: ['cliente_id'],
+      },
+      async execute(args) {
+        const id = typeof args.cliente_id === 'string' ? args.cliente_id.trim().toLowerCase() : '';
+        // Only the file of the client in this request: nothing the model reads in the library
+        // can send it to look at another client.
+        if (id !== client.id) throw new Error('cliente_id inválido: solo se puede leer la ficha del cliente de este pedido.');
+        return clientCard(client);
+      },
+    });
+  }
+
+  return tools;
 }

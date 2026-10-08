@@ -1,6 +1,7 @@
 // Modelo de datos de LexSearch.
 // Fase 1: biblioteca de documentos + fragmentos (RAG) + registro de interacciones con la IA.
-// Las próximas fases agregan Cliente, Expediente, Actuación, Plazo y Notificación.
+// Fase 2: borradores. Fase 3: clientes.
+// Las próximas fases agregan Expediente, Actuación, Plazo y Notificación.
 
 generator client {
   provider            = "prisma-client"
@@ -129,10 +130,46 @@ model Draft {
   sources            Json
   model              String?
   interactionId      String?   @map("interaction_id") @db.Uuid
+  /// Cliente para el que se redactó (el agente lee su ficha). Si se borra el cliente, el borrador queda.
+  clientId           String?   @map("client_id") @db.Uuid
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
   templateDocument   Document? @relation(fields: [templateDocumentId], references: [id], onDelete: SetNull)
+  client             Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   @@index([createdAt])
+  @@index([clientId])
   @@map("drafts")
+}
+
+/// Ficha de cliente (Fase 3): datos, contraparte, caso y documentación que falta reunir.
+/// Los textos vacíos significan "sin dato": así la interfaz y el agente no manejan nulos.
+model Client {
+  id                   String   @id @default(uuid()) @db.Uuid
+  fullName             String   @map("full_name")
+  /// FISICA (persona humana) o JURIDICA (sociedad, asociación...).
+  personType           String   @default("FISICA") @map("person_type")
+  /// DNI, CUIT o CUIL, tal como lo escribe el abogado.
+  documentNumber       String   @default("") @map("document_number")
+  email                String   @default("")
+  phone                String   @default("")
+  address              String   @default("")
+  counterpartyName     String   @default("") @map("counterparty_name")
+  counterpartyDocument String   @default("") @map("counterparty_document")
+  counterpartyAddress  String   @default("") @map("counterparty_address")
+  /// Área de práctica (LABORAL, CIVIL...; ver clients.schemas.ts). Nula hasta definirla.
+  practiceArea         String?  @map("practice_area")
+  conflictSummary      String   @default("") @map("conflict_summary")
+  /// Lo que el cliente pretende obtener.
+  claim                String   @default("")
+  /// Documentación que falta reunir: [{ id, text, done }].
+  checklist            Json     @default("[]")
+  /// Notas o transcripción de la primera reunión: de ahí sale la ficha.
+  meetingNotes         String   @default("") @map("meeting_notes")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  drafts               Draft[]
+
+  @@index([fullName])
+  @@map("clients")
 }

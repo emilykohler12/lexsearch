@@ -1,12 +1,15 @@
 import { Check, Copy, Download, ExternalLink, Eye, Pencil, Save, Trash2, type LucideIcon } from 'lucide-react';
-import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { Link, useBlocker, useNavigate, useParams } from 'react-router';
+import { useRef, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router';
 import { api } from '../api/client';
 import { useDeleteDraft, useDraft, useUpdateDraft } from '../api/hooks';
 import type { Draft, DraftSource } from '../api/types';
+import { UnsavedChangesDialog } from '../components/UnsavedChangesDialog';
 import { Alert, Dialog, Spinner } from '../components/ui';
 import { countPlaceholders, toPlainText } from '../features/drafts/markdown';
 import { MarkdownPreview } from '../features/drafts/MarkdownPreview';
+import { useSaveShortcut } from '../hooks/useSaveShortcut';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { DRAFT_TYPE_LABELS, formatDate, formatPages, plural } from '../lib/format';
 
 type Mode = 'preview' | 'edit';
@@ -85,38 +88,8 @@ function DraftEditor({ draft }: { draft: Draft }) {
     }
   };
 
-  // Ctrl + S (⌘ + S on a Mac) saves the draft instead of opening the browser's "Save page" dialog.
-  const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
-      event.preventDefault();
-      void save();
-    }
-  });
-  useEffect(() => {
-    const listener = (event: KeyboardEvent) => onKeyDown(event);
-    window.addEventListener('keydown', listener);
-    return () => window.removeEventListener('keydown', listener);
-  }, []);
-
-  // Going to another section with unsaved changes asks first (in the dialog at the end)...
-  const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) =>
-      dirty && !leaving.current && currentLocation.pathname !== nextLocation.pathname,
-  );
-  const saveAndLeave = async () => {
-    const saved = await save();
-    if (blocker.state !== 'blocked') return;
-    if (saved) blocker.proceed();
-    else blocker.reset(); // stay: the save error is shown above the editor
-  };
-
-  // ...and so does closing or reloading the tab (that question is the browser's own).
-  useEffect(() => {
-    if (!dirty && !saving) return;
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty, saving]);
+  useSaveShortcut(() => void save());
+  const { blocker, saveAndLeave } = useUnsavedChanges({ dirty, saving, save, leaving });
 
   // The Word file is made from the saved draft, so pending changes are saved first.
   const downloadWord = async () => {
@@ -167,6 +140,14 @@ function DraftEditor({ draft }: { draft: Draft }) {
         />
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
           <span>{DRAFT_TYPE_LABELS[draft.documentType]}</span>
+          {draft.client && (
+            <span>
+              ·{' '}
+              <Link to={`/clientes/${draft.client.id}`} className="underline hover:text-ink">
+                {draft.client.fullName}
+              </Link>
+            </span>
+          )}
           <span>· creado el {formatDate(draft.createdAt)}</span>
           {placeholders > 0 && (
             <span className="rounded-sm bg-highlight px-1.5 py-0.5 font-medium text-ink">
@@ -265,35 +246,7 @@ function DraftEditor({ draft }: { draft: Draft }) {
 
       <DraftSources draft={draft} />
 
-      <Dialog
-        open={blocker.state === 'blocked'}
-        title="Tenés cambios sin guardar"
-        onClose={() => blocker.reset?.()}
-        actions={
-          <>
-            <button
-              type="button"
-              className="btn-secondary min-h-11 sm:min-h-0"
-              data-autofocus
-              onClick={() => blocker.reset?.()}
-            >
-              Seguir editando
-            </button>
-            <button type="button" className="btn-secondary min-h-11 sm:min-h-0" onClick={() => blocker.proceed?.()}>
-              Salir sin guardar
-            </button>
-            <button
-              type="button"
-              className="btn-primary min-h-11 sm:min-h-0"
-              onClick={() => void saveAndLeave()}
-              disabled={saving}
-            >
-              {saving && <Spinner />}
-              Guardar y salir
-            </button>
-          </>
-        }
-      />
+      <UnsavedChangesDialog blocker={blocker} saving={saving} onSaveAndLeave={() => void saveAndLeave()} />
 
       <Dialog
         open={confirmingDelete}

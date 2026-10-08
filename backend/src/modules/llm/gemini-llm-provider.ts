@@ -25,6 +25,8 @@ import type {
   GroundingDocument,
   LlmProvider,
   LlmUsage,
+  StructuredInput,
+  StructuredResult,
 } from './llm-provider.js';
 import { locateQuote } from './quote-locator.js';
 
@@ -49,8 +51,13 @@ const modelAnswerSchema = z.object({
 
 type ModelAnswer = z.infer<typeof modelAnswerSchema>;
 
-// The API takes a plain JSON Schema; drop the meta-schema key it doesn't need.
-const { $schema: _metaSchema, ...RESPONSE_JSON_SCHEMA } = z.toJSONSchema(modelAnswerSchema) as Record<string, unknown>;
+/** The API takes a plain JSON Schema; drop the meta-schema key it doesn't need. */
+function toResponseJsonSchema(schema: z.ZodType): Record<string, unknown> {
+  const { $schema: _metaSchema, ...jsonSchema } = z.toJSONSchema(schema) as Record<string, unknown>;
+  return jsonSchema;
+}
+
+const RESPONSE_JSON_SCHEMA = toResponseJsonSchema(modelAnswerSchema);
 
 // Legal files can describe crimes or violence in detail; the default filters would block
 // legitimate professional queries. The model's own core protections still apply.
@@ -145,38 +152,48 @@ export class GeminiLlmProvider implements LlmProvider {
       response = await this.request(input, { withQuotes: false });
     }
 
-    const answer = this.parse(response);
+    const answer = this.parseJson(response, modelAnswerSchema);
     const { blocks, unverifiedQuotes } = toAnswerBlocks(answer, input.documents);
     if (unverifiedQuotes > 0) {
       this.logger.warn({ unverifiedQuotes }, 'Some quotes were not found verbatim in their fragment');
     }
 
-    const usage = response.usageMetadata;
-    return {
-      blocks,
-      model: response.modelVersion ?? this.model,
-      usage: {
-        inputTokens: usage?.promptTokenCount ?? 0,
-        // Thinking tokens are billed as output.
-        outputTokens: (usage?.candidatesTokenCount ?? 0) + (usage?.thoughtsTokenCount ?? 0),
-      },
-    };
+    return { blocks, model: response.modelVersion ?? this.model, usage: usageOf(response) };
   }
 
-  /** Calls the main model and, if it is busy, out of quota, retired or too slow, each fallback in turn. */
-  private async request(input: GroundedAnswerInput, options: { withQuotes: boolean }) {
+  async generateStructured<T>(input: StructuredInput<T>): Promise<StructuredResult<T>> {
+    const response = await this.generateJson({
+      systemPrompt: input.systemPrompt,
+      text: input.userMessage,
+      jsonSchema: toResponseJsonSchema(input.schema),
+    });
+    return { data: this.parseJson(response, input.schema), model: response.modelVersion ?? this.model, usage: usageOf(response) };
+  }
+
+  private request(input: GroundedAnswerInput, options: { withQuotes: boolean }) {
+    return this.generateJson({
+      systemPrompt: input.systemPrompt,
+      text: buildUserMessage(input, options.withQuotes),
+      jsonSchema: RESPONSE_JSON_SCHEMA,
+    });
+  }
+
+  /**
+   * One JSON-mode call. Tries the main model and, if it is busy, out of quota, retired or too
+   * slow, each fallback in turn.
+   */
+  private async generateJson(request: { systemPrompt: string; text: string; jsonSchema: Record<string, unknown> }) {
     const models = [this.model, ...this.fallbackModels];
-    const text = buildUserMessage(input, options.withQuotes);
 
     for (const [attempt, model] of models.entries()) {
       try {
         return await this.client.models.generateContent({
           model,
-          contents: [{ role: 'user', parts: [{ text }] }],
+          contents: [{ role: 'user', parts: [{ text: request.text }] }],
           config: {
-            systemInstruction: input.systemPrompt,
+            systemInstruction: request.systemPrompt,
             responseMimeType: 'application/json',
-            responseJsonSchema: RESPONSE_JSON_SCHEMA,
+            responseJsonSchema: request.jsonSchema,
             safetySettings: SAFETY_SETTINGS,
             abortSignal: AbortSignal.timeout(this.timeoutPerModelMs),
             ...(this.thinkingLevel &&
@@ -304,7 +321,8 @@ export class GeminiLlmProvider implements LlmProvider {
     }
   }
 
-  private parse(response: GenerateContentResponse): ModelAnswer {
+  /** Checks that the model answered (not blocked or cut off) and that the JSON has the expected shape. */
+  private parseJson<T>(response: GenerateContentResponse, schema: z.ZodType<T>): T {
     if (response.promptFeedback?.blockReason) {
       throw refusal();
     }
@@ -323,7 +341,7 @@ export class GeminiLlmProvider implements LlmProvider {
       this.logger.error({ finishReason }, 'Gemini returned invalid JSON');
       throw new UpstreamError('LLM_BAD_RESPONSE', 'Gemini devolvió una respuesta con formato inválido. Probá de nuevo.');
     }
-    const parsed = modelAnswerSchema.safeParse(json);
+    const parsed = schema.safeParse(json);
     if (!parsed.success) {
       this.logger.error({ finishReason }, 'Gemini response does not match the schema');
       throw new UpstreamError('LLM_BAD_RESPONSE', 'Gemini devolvió una respuesta con formato inválido. Probá de nuevo.');
@@ -421,6 +439,15 @@ export function supportsThinkingLevel(model: string): boolean {
 
 function finishReasonOf(response: GenerateContentResponse): string | undefined {
   return response.candidates?.[0]?.finishReason;
+}
+
+function usageOf(response: GenerateContentResponse): LlmUsage {
+  const usage = response.usageMetadata;
+  return {
+    inputTokens: usage?.promptTokenCount ?? 0,
+    // Thinking tokens are billed as output.
+    outputTokens: (usage?.candidatesTokenCount ?? 0) + (usage?.thoughtsTokenCount ?? 0),
+  };
 }
 
 function refusal(): UpstreamError {

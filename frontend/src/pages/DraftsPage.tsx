@@ -1,7 +1,7 @@
 import { ChevronRight, FilePenLine } from 'lucide-react';
 import { useId, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
-import { useCreateDraft, useDocuments, useDrafts, useHealth } from '../api/hooks';
+import { Link, useNavigate, useSearchParams } from 'react-router';
+import { useClients, useCreateDraft, useDocuments, useDrafts, useHealth } from '../api/hooks';
 import type { DocumentCategory, DraftType } from '../api/types';
 import { Alert, PageHeader, Spinner } from '../components/ui';
 import { CATEGORIES, CATEGORY_LABELS, DRAFT_TYPE_LABELS, DRAFT_TYPES, formatDate } from '../lib/format';
@@ -23,9 +23,12 @@ export function DraftsPage() {
 
 function NewDraftForm() {
   const navigate = useNavigate();
-  const ids = { type: useId(), title: useId(), template: useId(), facts: useId(), instructions: useId() };
+  const ids = { type: useId(), client: useId(), title: useId(), template: useId(), facts: useId(), instructions: useId() };
+  const [searchParams] = useSearchParams();
   const [documentType, setDocumentType] = useState<DraftType>('CARTA_DOCUMENTO');
   const [title, setTitle] = useState('');
+  // "Redactar borrador" in a client's file arrives here with the client already chosen.
+  const [clientId, setClientId] = useState(searchParams.get('cliente') ?? '');
   const [templateDocumentId, setTemplateDocumentId] = useState('');
   const [caseDetails, setCaseDetails] = useState('');
   const [instructions, setInstructions] = useState('');
@@ -33,11 +36,15 @@ function NewDraftForm() {
   const create = useCreateDraft();
   const { data: health } = useHealth();
   const { data: documents } = useDocuments();
+  const { data: clients } = useClients();
 
   const llmConfigured = health?.llm.configured ?? true;
   const templates = (documents ?? [])
     .filter((d) => d.status === 'READY')
     .sort((a, b) => TEMPLATE_ORDER.indexOf(a.category) - TEMPLATE_ORDER.indexOf(b.category) || a.title.localeCompare(b.title));
+  const sortedClients = [...(clients ?? [])].sort((a, b) => a.fullName.localeCompare(b.fullName, 'es'));
+  // A client that was deleted (or a stale link) must not be sent.
+  const selectedClient = sortedClients.find((c) => c.id === clientId);
   const canSubmit = instructions.trim().length >= 3 && !create.isPending && llmConfigured;
 
   const onSubmit = (event: FormEvent) => {
@@ -49,6 +56,7 @@ function NewDraftForm() {
         instructions: instructions.trim(),
         caseDetails: caseDetails.trim(),
         ...(title.trim() && { title: title.trim() }),
+        ...(selectedClient && { clientId: selectedClient.id }),
         ...(templateDocumentId && { templateDocumentId }),
         ...(categories.length > 0 && { categories }),
       },
@@ -71,7 +79,7 @@ function NewDraftForm() {
         </Alert>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div>
           <label htmlFor={ids.type} className="label">
             Tipo de documento
@@ -80,6 +88,19 @@ function NewDraftForm() {
             {DRAFT_TYPES.map((type) => (
               <option key={type} value={type}>
                 {DRAFT_TYPE_LABELS[type]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor={ids.client} className="label">
+            Cliente (opcional)
+          </label>
+          <select id={ids.client} className="input" value={selectedClient?.id ?? ''} onChange={(e) => setClientId(e.target.value)}>
+            <option value="">Sin cliente</option>
+            {sortedClients.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.fullName}
               </option>
             ))}
           </select>
@@ -203,7 +224,8 @@ function DraftList() {
                 <div className="min-w-0 flex-1">
                   <p className="font-medium break-words sm:truncate">{draft.title}</p>
                   <p className="mt-0.5 text-xs text-muted">
-                    {DRAFT_TYPE_LABELS[draft.documentType]} · actualizado el {formatDate(draft.updatedAt)}
+                    {DRAFT_TYPE_LABELS[draft.documentType]}
+                    {draft.client && ` · ${draft.client.fullName}`} · actualizado el {formatDate(draft.updatedAt)}
                   </p>
                 </div>
                 <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />

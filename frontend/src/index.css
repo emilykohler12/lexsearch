@@ -70,6 +70,10 @@
 @utility label {
   @apply mb-1 block text-xs font-semibold tracking-wide text-muted uppercase;
 }
+/* A field the AI filled in: it stands out until the lawyer edits it. */
+.input[data-suggested='true'] {
+  @apply border-brass-500 bg-brass-50;
+}
 
 mark.quote {
   @apply rounded-sm bg-highlight px-0.5 text-ink;

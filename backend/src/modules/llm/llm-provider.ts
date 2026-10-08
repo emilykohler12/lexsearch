@@ -1,3 +1,5 @@
+import type { z } from 'zod';
+
 /**
  * Provider-neutral contract for the language model. The rest of the app only talks
  * to this interface, so switching providers means writing one new implementation.
@@ -76,10 +78,25 @@ export interface AgentRunResult {
   usage: LlmUsage;
 }
 
+export interface StructuredInput<T> {
+  systemPrompt: string;
+  userMessage: string;
+  /** Shape of the answer: sent to the model as a JSON Schema and used to validate what comes back. */
+  schema: z.ZodType<T>;
+}
+
+export interface StructuredResult<T> {
+  data: T;
+  model: string;
+  usage: LlmUsage;
+}
+
 export interface LlmProvider {
   readonly providerName: string;
   readonly model: string;
   generateGroundedAnswer(input: GroundedAnswerInput): Promise<GroundedAnswer>;
   /** Lets the model call tools in a loop until it produces a final answer. */
   runAgent(input: AgentRunInput): Promise<AgentRunResult>;
+  /** One call that returns data in the given shape (for example, a form filled from free text). */
+  generateStructured<T>(input: StructuredInput<T>): Promise<StructuredResult<T>>;
 }

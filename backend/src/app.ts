@@ -9,6 +9,10 @@ import { buildOpenApiDocument } from './docs/openapi.js';
 import type { FileStorage } from './lib/file-storage.js';
 import type { Logger } from './lib/logger.js';
 import { errorHandler, notFoundHandler } from './middlewares/error-handler.js';
+import { ClientsController } from './modules/clients/clients.controller.js';
+import { ClientsRepository } from './modules/clients/clients.repository.js';
+import { clientsRouter } from './modules/clients/clients.routes.js';
+import { ClientsService } from './modules/clients/clients.service.js';
 import { DocumentTextReader } from './modules/documents/document-text.js';
 import { DocumentsController } from './modules/documents/documents.controller.js';
 import { DocumentsRepository } from './modules/documents/documents.repository.js';
@@ -62,9 +66,17 @@ export function createApp(deps: AppDeps) {
     interactions: interactionsRepository,
     logger,
   });
+  const clientsRepository = new ClientsRepository(db);
+  const clientsService = new ClientsService({
+    repository: clientsRepository,
+    llm,
+    interactions: interactionsRepository,
+    logger,
+  });
   const draftsService = new DraftsService({
     repository: new DraftsRepository(db),
     documents: documentsRepository,
+    clients: clientsRepository,
     reader: new DocumentTextReader({ repository: documentsRepository, storage, ocr }),
     rag: ragService,
     llm,
@@ -123,6 +135,7 @@ export function createApp(deps: AppDeps) {
     }),
   );
   app.use('/api/rag', ragRouter(new RagController(ragService)));
+  app.use('/api/clients', clientsRouter(new ClientsController(clientsService)));
   app.use('/api/drafts', draftsRouter(new DraftsController(draftsService)));
   app.use('/api/interactions', interactionsRouter(new InteractionsController(interactionsRepository)));
 

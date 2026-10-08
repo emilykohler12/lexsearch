@@ -69,7 +69,7 @@ describe('POST /api/drafts', () => {
 
     // The run is logged with the original draft, to debug the prompt later.
     const interaction = await ctx.db.agentInteraction.findFirstOrThrow({ where: { module: 'draft-generator' } });
-    expect(interaction).toMatchObject({ status: 'SUCCESS', promptVersion: 'draft-generator.v1', model: 'fake-model' });
+    expect(interaction).toMatchObject({ status: 'SUCCESS', promptVersion: 'draft-generator.v2', model: 'fake-model' });
     expect((interaction.output as { content: string }).content).toBe(draft.content);
   });
 

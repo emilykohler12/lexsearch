@@ -1,7 +1,7 @@
 import { CircleCheck, CircleX, Info, LoaderCircle, TriangleAlert, X } from 'lucide-react';
 import { useEffect, useId, useRef, type ReactNode } from 'react';
-import type { DocumentCategory, DocumentStatus } from '../api/types';
-import { CATEGORY_LABELS, STATUS_LABELS } from '../lib/format';
+import type { DocumentCategory, DocumentStatus, PracticeArea } from '../api/types';
+import { CATEGORY_LABELS, PRACTICE_AREA_LABELS, STATUS_LABELS } from '../lib/format';
 
 export function PageHeader({ title, description, actions }: { title: string; description?: ReactNode; actions?: ReactNode }) {
   return (
@@ -125,6 +125,14 @@ export function CategoryBadge({ category }: { category: DocumentCategory }) {
   return (
     <span className="inline-flex rounded-md bg-brass-50 px-2 py-0.5 text-xs font-medium text-brass-700 ring-1 ring-brass-100">
       {CATEGORY_LABELS[category]}
+    </span>
+  );
+}
+
+export function PracticeAreaBadge({ area }: { area: PracticeArea }) {
+  return (
+    <span className="inline-flex rounded-md bg-navy-900/5 px-2 py-0.5 text-xs font-medium text-navy-800 ring-1 ring-navy-900/10">
+      {PRACTICE_AREA_LABELS[area]}
     </span>
   );
 }

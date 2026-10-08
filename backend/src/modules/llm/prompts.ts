@@ -9,7 +9,8 @@ import { PROMPTS_DIR } from '../../config/paths.js';
  */
 export const PROMPT_VERSIONS = {
   ragAnswer: 'rag-answer.v2',
-  draftGenerator: 'draft-generator.v1',
+  draftGenerator: 'draft-generator.v2',
+  clientIntake: 'client-intake.v1',
 } as const;
 
 export interface Prompt {

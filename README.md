@@ -1,6 +1,6 @@
 # LexSearch
 
-Sistema de inteligencia artificial personal para un abogado: una **biblioteca consultable** (leyes, jurisprudencia, doctrina y modelos propios) que responde preguntas en lenguaje natural **citando el fragmento exacto de cada fuente**, y un **asistente que redacta borradores** de escritos y contratos a partir de esa biblioteca. En las próximas fases: fichas de clientes, control de plazos y más.
+Sistema de inteligencia artificial personal para un abogado: una **biblioteca consultable** (leyes, jurisprudencia, doctrina y modelos propios) que responde preguntas en lenguaje natural **citando el fragmento exacto de cada fuente**, un **asistente que redacta borradores** de escritos y contratos a partir de esa biblioteca, y **fichas de cliente** que se arman a partir de las notas de la primera reunión. En las próximas fases: control de plazos, expedientes y más.
 
 > **Principio rector:** todo contenido generado es una propuesta que el abogado revisa y valida. El sistema no reemplaza el criterio profesional ni asesora por sí mismo.
 
@@ -11,8 +11,8 @@ Sistema de inteligencia artificial personal para un abogado: una **biblioteca co
 | 0 | Setup: repo, entorno, PostgreSQL + pgvector, proveedor de LLM | ✅ Hecha |
 | 1 | RAG básico: subir documentos, fragmentar, embeddings, búsqueda y respuestas con citas | ✅ Hecha |
 | 2 | Generador de borradores de escritos y contratos | ✅ Hecha |
-| 3 | Ficha de cliente / CRM simplificado | Siguiente |
-| 4 | Control de plazos y notificaciones | Pendiente |
+| 3 | Ficha de cliente / CRM simplificado | ✅ Hecha |
+| 4 | Control de plazos y notificaciones | Siguiente |
 | 5 | Timeline automático de expediente | Pendiente |
 | 6 | Detector de contradicciones | Pendiente |
 | 7 | Vigía normativo (Boletín Oficial) | Pendiente |
@@ -28,7 +28,8 @@ Las decisiones técnicas y su justificación están en [docs/decisiones.md](docs
 - **OCR (reconocimiento de texto):** los PDF escaneados (o sus páginas escaneadas) y las fotos se leen automáticamente, en tu computadora: las imágenes no se envían a ningún servicio. Los documentos leídos así quedan marcados como «Leído con OCR», porque el texto puede tener errores de lectura.
 - **Búsqueda híbrida:** combina búsqueda *por significado* (vectores) con búsqueda *por palabras exactas* en español sin acentos (útil para "art. 245" o "Ley 20.744"). Filtra por tipo de documento. Solo muestra fragmentos que de verdad se relacionan con la consulta: si buscás algo que no está en tu biblioteca, te lo dice en lugar de mostrar resultados al azar.
 - **Respuestas con IA (Gemini):** redacta la respuesta usando solo los fragmentos recuperados y marca cada afirmación con su fuente. Antes de mostrar una cita, el servidor verifica que la frase exista textualmente en el fragmento. Al hacer clic en una cita ves ese texto resaltado y podés abrir el PDF original en esa página.
-- **Borradores con IA:** elegís el tipo de documento (carta documento, contrato, demanda, contestación u otro escrito), opcionalmente un modelo base de tu biblioteca, y cargás los datos del caso y qué necesitás. Un asistente de IA lee el modelo, busca en tu biblioteca cláusulas, normas y jurisprudencia, y redacta el borrador. Solo cita normas que encontró en tu biblioteca; los datos que faltan quedan marcados como `[COMPLETAR: …]` y resaltados. Podés editarlo y guardarlo (botón «Guardar» o `Ctrl + S`), copiarlo o descargarlo en Word (.docx), y ver qué documentos consultó.
+- **Borradores con IA:** elegís el tipo de documento (carta documento, contrato, demanda, contestación u otro escrito), opcionalmente un modelo base de tu biblioteca, y cargás los datos del caso y qué necesitás. Un asistente de IA lee el modelo, busca en tu biblioteca cláusulas, normas y jurisprudencia, y redacta el borrador. Solo cita normas que encontró en tu biblioteca (si no la encuentra, deja `[COMPLETAR: norma aplicable]` en lugar de escribirla de memoria; igual conviene revisar siempre las citas); los datos que faltan quedan marcados como `[COMPLETAR: …]` y resaltados. Si elegís un cliente, el asistente lee su ficha (datos propios y de la contraparte, conflicto y notas) antes de redactar. Podés editarlo y guardarlo (botón «Guardar» o `Ctrl + S`), copiarlo o descargarlo en Word (.docx), y ver qué documentos consultó.
+- **Clientes:** una ficha por cliente con sus datos, la contraparte, el resumen del conflicto, la pretensión y un checklist de la documentación que falta reunir. Podés cargarla a mano o pegar las notas (o la transcripción) de la primera reunión y tocar «Completar con IA»: la IA propone los datos y el checklist, resaltados para que los revises; solo completa lo que está vacío, no pisa lo que escribiste, y no guarda nada hasta que tocás «Guardar». Desde la ficha podés redactar un borrador para ese cliente.
 - **Historial:** cada consulta queda registrada con su respuesta, las fuentes, el modelo y la versión del prompt. Los borradores también quedan registrados en la base con el texto original de la IA, aunque después los edites.
 - **API documentada** en `http://localhost:4000/api/docs` (Swagger).
 
@@ -128,6 +129,7 @@ lexsearch/
 │   │       ├── documents/    Biblioteca: subida, extracción, fragmentación, indexado
 │   │       ├── embeddings/   Modelo local de embeddings
 │   │       ├── rag/          Búsqueda híbrida y respuestas con citas
+│   │       ├── clients/      Fichas de cliente y lectura de las notas de la primera reunión con IA
 │   │       ├── drafts/       Borradores: asistente de redacción, edición y exportación a Word
 │   │       ├── llm/          Proveedor de IA (Gemini) detrás de una interfaz
 │   │       ├── interactions/ Historial de interacciones con la IA
@@ -145,11 +147,12 @@ Cada módulo del backend sigue la misma separación de capas: `routes → contro
 
 1. **Al subir un documento:** se guarda el original con un nombre aleatorio → se extrae el texto por página → se divide en fragmentos de ~1.200 caracteres respetando párrafos → cada fragmento se convierte en un vector con un modelo que corre en tu computadora → se guarda en PostgreSQL (pgvector).
 2. **Al preguntar:** la pregunta se convierte en vector → se buscan los fragmentos más parecidos por significado y por palabras, descartando los que no alcanzan una similitud mínima → se combinan ambos rankings → los 8 mejores se envían a Gemini → Gemini responde en bloques, indicando para cada uno el fragmento que lo respalda y una frase copiada textualmente → el servidor verifica cada frase contra el fragmento original y solo resalta las que existen de verdad. Si no hay ningún fragmento relacionado, responde eso mismo sin consultar a Gemini.
-3. **Al pedir un borrador:** el pedido (tipo, datos del caso, indicaciones y modelo base) se envía a Gemini junto con dos herramientas: *buscar en la biblioteca* y *leer un documento*. Gemini decide qué buscar y qué leer (hasta 4 rondas); cada búsqueda la ejecuta el servidor en tu base local y le devuelve solo esos resultados. Con eso redacta el borrador, que se guarda junto con la lista de lo que consultó.
+3. **Al pedir un borrador:** el pedido (tipo, datos del caso, indicaciones y modelo base) se envía a Gemini junto con dos herramientas: *buscar en la biblioteca* y *leer un documento*. Gemini decide qué buscar y qué leer (hasta 4 rondas); cada búsqueda la ejecuta el servidor en tu base local y le devuelve solo esos resultados. Si elegiste un cliente, también tiene una herramienta para leer la ficha de ese cliente (y solo la de ese). Con eso redacta el borrador, que se guarda junto con la lista de lo que consultó.
+4. **Al completar una ficha con IA:** las notas de la reunión se envían a Gemini con la instrucción de devolver los datos de la ficha en un formato fijo, dejando vacío lo que no figura. El servidor limpia la respuesta (códigos válidos, sin marcadores tipo «no consta», sin documentos repetidos) y la interfaz la vuelca en el formulario sin guardar nada.
 
 ## Privacidad y seguridad
 
-- Los documentos completos **no salen de tu computadora**: el indexado usa un modelo local. A Gemini solo viajan la pregunta y los fragmentos relevantes de cada consulta; al redactar un borrador, también los datos del caso que cargaste y el texto del modelo base (o de los documentos que el asistente decida leer). Con el plan gratuito de la API, Google puede usar ese contenido para mejorar sus productos: activá la facturación antes de trabajar con datos reales de clientes (ver «Configurar Gemini»).
+- Los documentos completos **no salen de tu computadora**: el indexado usa un modelo local. A Gemini solo viajan la pregunta y los fragmentos relevantes de cada consulta; al redactar un borrador, también los datos del caso que cargaste, el texto del modelo base (o de los documentos que el asistente decida leer) y la ficha del cliente elegido; y al tocar «Completar con IA» en una ficha, las notas de la reunión. Con el plan gratuito de la API, Google puede usar ese contenido para mejorar sus productos: activá la facturación antes de trabajar con datos reales de clientes (ver «Configurar Gemini»).
 - La API y la base escuchan solo en `127.0.0.1`: no son accesibles desde otras computadoras de la red.
 - Los logs no registran contenido de documentos, preguntas ni respuestas (solo ids, cantidades y tiempos). Las consultas viajan en el cuerpo de la solicitud, nunca en la URL.
 - El contenido de los documentos se trata como **datos, nunca como instrucciones** (mitigación de inyección de prompt), y cada afirmación de la IA debe poder rastrearse a su fuente.

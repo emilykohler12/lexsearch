@@ -109,10 +109,17 @@ export type DraftType =
   | 'NOTA'
   | 'OTRO';
 
+/** Enough of a client to name it and link to its file. */
+export interface ClientRef {
+  id: string;
+  fullName: string;
+}
+
 export interface DraftSummary {
   id: string;
   title: string;
   documentType: DraftType;
+  client: ClientRef | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -142,6 +149,81 @@ export interface CreateDraftInput {
   title?: string;
   instructions: string;
   caseDetails: string;
+  clientId?: string;
   templateDocumentId?: string;
   categories?: DocumentCategory[];
+}
+
+export type PracticeArea =
+  | 'LABORAL'
+  | 'CIVIL'
+  | 'COMERCIAL'
+  | 'FAMILIA'
+  | 'SUCESIONES'
+  | 'PENAL'
+  | 'ADMINISTRATIVO'
+  | 'PREVISIONAL'
+  | 'CONSUMO'
+  | 'OTRO';
+
+export type PersonType = 'FISICA' | 'JURIDICA';
+
+/** A document the client still has to bring (or has already brought, when done). */
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export interface ClientSummary {
+  id: string;
+  fullName: string;
+  personType: PersonType;
+  documentNumber: string;
+  practiceArea: PracticeArea | null;
+  counterpartyName: string;
+  pendingDocuments: number;
+  totalDocuments: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Client {
+  id: string;
+  fullName: string;
+  personType: PersonType;
+  documentNumber: string;
+  email: string;
+  phone: string;
+  address: string;
+  counterpartyName: string;
+  counterpartyDocument: string;
+  counterpartyAddress: string;
+  practiceArea: PracticeArea | null;
+  conflictSummary: string;
+  claim: string;
+  checklist: ChecklistItem[];
+  meetingNotes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** The part of a client file the lawyer edits (what the API saves). */
+export type ClientFields = Omit<Client, 'id' | 'createdAt' | 'updatedAt'>;
+
+/** What the AI proposes from the notes of the first meeting; nothing is saved until the lawyer says so. */
+export interface ClientProposal {
+  fullName: string;
+  personType: PersonType;
+  documentNumber: string;
+  email: string;
+  phone: string;
+  address: string;
+  counterpartyName: string;
+  counterpartyDocument: string;
+  counterpartyAddress: string;
+  practiceArea: PracticeArea | null;
+  conflictSummary: string;
+  claim: string;
+  missingDocuments: string[];
 }

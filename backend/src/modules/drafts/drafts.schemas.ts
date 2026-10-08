@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { Draft } from '../../generated/prisma/client.js';
 import { categorySchema } from '../documents/documents.schemas.js';
+import type { DraftWithClient } from './drafts.repository.js';
 
 /** Kinds of document the agent can draft (code → label shown to the lawyer). */
 export const DRAFT_TYPES = {
@@ -22,9 +22,13 @@ export const createDraftSchema = z.object({
   title: z.string().trim().max(200).optional(),
   instructions: z.string().trim().min(3).max(4000),
   caseDetails: z.string().trim().max(8000).default(''),
+  /** The agent reads this client's file before writing. */
+  clientId: z.uuid().optional(),
   templateDocumentId: z.uuid().optional(),
   categories: z.array(categorySchema).max(10).optional(),
 });
+
+export const listDraftsQuerySchema = z.object({ clientId: z.uuid().optional() });
 
 export const updateDraftSchema = z
   .object({
@@ -48,7 +52,7 @@ export interface DraftSource {
   content?: string;
 }
 
-export function toDraftDto(draft: Draft) {
+export function toDraftDto(draft: DraftWithClient) {
   return {
     id: draft.id,
     title: draft.title,
@@ -56,6 +60,7 @@ export function toDraftDto(draft: Draft) {
     instructions: draft.instructions,
     caseDetails: draft.caseDetails,
     templateDocumentId: draft.templateDocumentId,
+    client: draft.client,
     content: draft.content,
     sources: draft.sources as unknown as DraftSource[],
     model: draft.model,
@@ -64,11 +69,14 @@ export function toDraftDto(draft: Draft) {
   };
 }
 
-export function toDraftSummaryDto(draft: Pick<Draft, 'id' | 'title' | 'documentType' | 'createdAt' | 'updatedAt'>) {
+export function toDraftSummaryDto(
+  draft: Pick<DraftWithClient, 'id' | 'title' | 'documentType' | 'client' | 'createdAt' | 'updatedAt'>,
+) {
   return {
     id: draft.id,
     title: draft.title,
     documentType: draft.documentType,
+    client: draft.client,
     createdAt: draft.createdAt,
     updatedAt: draft.updatedAt,
   };

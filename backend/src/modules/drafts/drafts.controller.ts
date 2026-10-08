@@ -1,6 +1,12 @@
 import type { Request, Response } from 'express';
 import { parseInput, uuidParamsSchema } from '../../lib/validation.js';
-import { createDraftSchema, toDraftDto, toDraftSummaryDto, updateDraftSchema } from './drafts.schemas.js';
+import {
+  createDraftSchema,
+  listDraftsQuerySchema,
+  toDraftDto,
+  toDraftSummaryDto,
+  updateDraftSchema,
+} from './drafts.schemas.js';
 import type { DraftsService } from './drafts.service.js';
 
 export class DraftsController {
@@ -11,8 +17,9 @@ export class DraftsController {
     res.status(201).json({ draft: toDraftDto(await this.service.create(input)) });
   };
 
-  list = async (_req: Request, res: Response) => {
-    const drafts = await this.service.list();
+  list = async (req: Request, res: Response) => {
+    const filters = parseInput(listDraftsQuerySchema, req.query);
+    const drafts = await this.service.list(filters);
     res.json({ drafts: drafts.map(toDraftSummaryDto) });
   };
 

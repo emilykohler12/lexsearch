@@ -7,6 +7,8 @@ import type {
   GroundedAnswer,
   GroundedAnswerInput,
   LlmProvider,
+  StructuredInput,
+  StructuredResult,
 } from '../../src/modules/llm/llm-provider.js';
 import type { OcrEngine, OcrResult } from '../../src/modules/ocr/ocr-engine.js';
 
@@ -69,8 +71,9 @@ export class FakeEmbeddingProvider implements EmbeddingProvider {
 
 /**
  * Answers citing the first document, and remembers what it was asked. As an agent, it
- * searches the library once, reads the base model if the request names one, and writes
- * a short draft quoting what it found — enough to exercise the real tools end to end.
+ * searches the library once, reads the base model and the client's file if the request
+ * names them, and writes a short draft quoting what it found — enough to exercise the
+ * real tools end to end.
  */
 export class FakeLlmProvider implements LlmProvider {
   readonly providerName = 'fake';
@@ -78,6 +81,21 @@ export class FakeLlmProvider implements LlmProvider {
   calls: GroundedAnswerInput[] = [];
   agentCalls: AgentRunInput[] = [];
   agentSearchQuery = 'plazo para contestar la demanda';
+  /** What a tool returned to the agent, by tool name (the last call of each). */
+  toolResults: Record<string, unknown> = {};
+  structuredCalls: Array<StructuredInput<unknown>> = [];
+  /** What the model "returns" to structured requests: each test sets the fields it needs. */
+  structuredData: unknown = {};
+
+  /** When set, structured requests fail with it (a busy or unreachable model). */
+  structuredError: Error | null = null;
+
+  async generateStructured<T>(input: StructuredInput<T>): Promise<StructuredResult<T>> {
+    this.structuredCalls.push(input as StructuredInput<unknown>);
+    if (this.structuredError) throw this.structuredError;
+    // Validated against the real schema, so a test can't pass with data the model could never return.
+    return { data: input.schema.parse(this.structuredData), model: this.model, usage: { inputTokens: 800, outputTokens: 200 } };
+  }
 
   async runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     this.agentCalls.push(input);
@@ -87,6 +105,7 @@ export class FakeLlmProvider implements LlmProvider {
       if (!tool) throw new Error(`missing tool ${name}`);
       const result = await tool.execute(args);
       toolCalls.push({ tool: name, args, ok: true });
+      this.toolResults[name] = result;
       return result;
     };
 
@@ -95,6 +114,13 @@ export class FakeLlmProvider implements LlmProvider {
     };
     const templateId = /documento_id: ([0-9a-f-]{36})/.exec(input.userMessage)?.[1];
     const template = templateId ? ((await use('leer_documento', { documento_id: templateId })) as { texto: string }) : null;
+    const clientId = /cliente_id: ([0-9a-f-]{36})/.exec(input.userMessage)?.[1];
+    const client = clientId
+      ? ((await use('leer_ficha_cliente', { cliente_id: clientId })) as {
+          cliente?: { nombre?: string };
+          contraparte?: { nombre?: string };
+        })
+      : null;
 
     const text = [
       'Título: CD a Distribuidora Ejemplo',
@@ -102,8 +128,8 @@ export class FakeLlmProvider implements LlmProvider {
       '```markdown',
       '# CARTA DOCUMENTO',
       '',
-      'Remitente: [COMPLETAR: nombre del remitente]',
-      'Destinatario: Distribuidora Ejemplo S.A.',
+      `Remitente: ${client?.cliente?.nombre ?? '[COMPLETAR: nombre del remitente]'}`,
+      `Destinatario: ${client ? (client.contraparte?.nombre ?? '[COMPLETAR: contraparte]') : 'Distribuidora Ejemplo S.A.'}`,
       '',
       `Fundamento: ${search.fragmentos[0]?.texto.slice(0, 60) ?? 'sin respaldo'}`,
       ...(template ? ['', `Según el modelo: ${template.texto.slice(0, 40)}`] : []),

@@ -1,6 +1,7 @@
-import type { Document, Draft, Prisma } from '../../generated/prisma/client.js';
+import type { Client, Document, Prisma } from '../../generated/prisma/client.js';
 import { BadRequestError, NotFoundError, ServiceUnavailableError } from '../../lib/errors.js';
 import type { Logger } from '../../lib/logger.js';
+import type { ClientsRepository } from '../clients/clients.repository.js';
 import type { DocumentTextReader } from '../documents/document-text.js';
 import type { DocumentsRepository } from '../documents/documents.repository.js';
 import { CATEGORY_LABELS } from '../documents/documents.schemas.js';
@@ -10,7 +11,7 @@ import { loadPrompt, PROMPT_VERSIONS } from '../llm/prompts.js';
 import type { RagService } from '../rag/rag.service.js';
 import { draftToDocx } from './docx-export.js';
 import { createDraftTools, SourceCollector } from './draft-tools.js';
-import type { DraftsRepository } from './drafts.repository.js';
+import type { DraftsRepository, DraftWithClient } from './drafts.repository.js';
 import { DRAFT_TYPES, type CreateDraftInput, type DraftType } from './drafts.schemas.js';
 
 export const DRAFT_MODULE = 'draft-generator';
@@ -21,6 +22,7 @@ const MAX_TOOL_ROUNDS = 4;
 interface DraftsServiceDeps {
   repository: DraftsRepository;
   documents: DocumentsRepository;
+  clients: ClientsRepository;
   reader: DocumentTextReader;
   rag: RagService;
   llm: LlmProvider | null;
@@ -32,7 +34,7 @@ export class DraftsService {
   constructor(private readonly deps: DraftsServiceDeps) {}
 
   /** Asks the agent for a first draft and stores it (with what it consulted) for the lawyer to review. */
-  async create(input: CreateDraftInput): Promise<Draft> {
+  async create(input: CreateDraftInput): Promise<DraftWithClient> {
     const { llm, interactions, logger } = this.deps;
     if (!llm) {
       throw new ServiceUnavailableError(
@@ -49,6 +51,12 @@ export class DraftsService {
       }
     }
 
+    let client: Client | null = null;
+    if (input.clientId) {
+      client = await this.deps.clients.findById(input.clientId);
+      if (!client) throw new BadRequestError('El cliente elegido no existe o fue eliminado.');
+    }
+
     const prompt = loadPrompt(PROMPT_VERSIONS.draftGenerator);
     const collector = new SourceCollector();
     const tools = createDraftTools({
@@ -56,6 +64,7 @@ export class DraftsService {
       reader: this.deps.reader,
       collector,
       defaultCategories: input.categories,
+      client,
     });
     const interactionInput = {
       documentType: input.documentType,
@@ -63,6 +72,7 @@ export class DraftsService {
       instructions: input.instructions,
       caseDetails: input.caseDetails,
       templateDocumentId: template?.id ?? null,
+      clientId: client?.id ?? null,
       categories: input.categories ?? [],
     };
     const startedAt = Date.now();
@@ -70,7 +80,7 @@ export class DraftsService {
     try {
       const result = await llm.runAgent({
         systemPrompt: prompt.text,
-        userMessage: buildDraftRequest(input, template),
+        userMessage: buildDraftRequest(input, template, client),
         tools,
         maxToolRounds: MAX_TOOL_ROUNDS,
       });
@@ -106,6 +116,7 @@ export class DraftsService {
         instructions: input.instructions,
         caseDetails: input.caseDetails,
         templateDocumentId: template?.id ?? null,
+        clientId: client?.id ?? null,
         content,
         sources: sources as unknown as Prisma.InputJsonValue,
         model: result.model,
@@ -127,17 +138,17 @@ export class DraftsService {
     }
   }
 
-  list() {
-    return this.deps.repository.list();
+  list(filters: { clientId?: string | undefined } = {}) {
+    return this.deps.repository.list(filters);
   }
 
-  async get(id: string): Promise<Draft> {
+  async get(id: string): Promise<DraftWithClient> {
     const draft = await this.deps.repository.findById(id);
     if (!draft) throw new NotFoundError('El borrador no existe o fue eliminado');
     return draft;
   }
 
-  async update(id: string, data: { title?: string | undefined; content?: string | undefined }): Promise<Draft> {
+  async update(id: string, data: { title?: string | undefined; content?: string | undefined }): Promise<DraftWithClient> {
     await this.get(id);
     return this.deps.repository.update(id, data);
   }
@@ -154,7 +165,11 @@ export class DraftsService {
 }
 
 /** The lawyer's request, as the agent reads it. */
-export function buildDraftRequest(input: CreateDraftInput, template: Pick<Document, 'id' | 'title'> | null): string {
+export function buildDraftRequest(
+  input: CreateDraftInput,
+  template: Pick<Document, 'id' | 'title'> | null,
+  client: Pick<Client, 'id' | 'fullName'> | null = null,
+): string {
   const lines = [
     `Tipo de documento: ${DRAFT_TYPES[input.documentType]}`,
     ...(input.title ? [`Título sugerido: ${input.title}`] : []),
@@ -163,7 +178,14 @@ export function buildDraftRequest(input: CreateDraftInput, template: Pick<Docume
     input.instructions,
     '',
     'Datos del caso y de las partes:',
-    input.caseDetails || '(No se indicaron: usá marcadores [COMPLETAR: …] para los datos que falten.)',
+    input.caseDetails ||
+      (client
+        ? '(Sin datos adicionales: usá la ficha del cliente y marcadores [COMPLETAR: …] para lo que falte.)'
+        : '(No se indicaron: usá marcadores [COMPLETAR: …] para los datos que falten.)'),
+    '',
+    client
+      ? `Cliente: «${client.fullName}» (cliente_id: ${client.id}). Leé su ficha con leer_ficha_cliente antes de redactar: de ahí salen los datos del cliente y de la contraparte.`
+      : 'No se eligió cliente: usá solo los datos del caso indicados arriba.',
     '',
     template
       ? `Modelo base elegido por el abogado: «${template.title}» (documento_id: ${template.id}). Leelo con leer_documento antes de redactar y seguí su estructura y su estilo.`

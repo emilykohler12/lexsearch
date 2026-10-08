@@ -1,4 +1,4 @@
-import type { DocumentCategory, DocumentStatus, DraftType } from '../api/types';
+import type { DocumentCategory, DocumentStatus, DraftType, PersonType, PracticeArea } from '../api/types';
 
 export const CATEGORY_LABELS: Record<DocumentCategory, string> = {
   LEGISLACION: 'Legislación',
@@ -57,3 +57,33 @@ export const DRAFT_TYPE_LABELS: Record<DraftType, string> = {
 };
 
 export const DRAFT_TYPES = Object.keys(DRAFT_TYPE_LABELS) as DraftType[];
+
+export const PRACTICE_AREA_LABELS: Record<PracticeArea, string> = {
+  LABORAL: 'Laboral',
+  CIVIL: 'Civil',
+  COMERCIAL: 'Comercial',
+  FAMILIA: 'Familia',
+  SUCESIONES: 'Sucesiones',
+  PENAL: 'Penal',
+  ADMINISTRATIVO: 'Administrativo',
+  PREVISIONAL: 'Previsional',
+  CONSUMO: 'Consumidor',
+  OTRO: 'Otro',
+};
+
+export const PRACTICE_AREAS = Object.keys(PRACTICE_AREA_LABELS) as PracticeArea[];
+
+export const PERSON_TYPE_LABELS: Record<PersonType, string> = {
+  FISICA: 'Persona humana',
+  JURIDICA: 'Persona jurídica',
+};
+
+export const PERSON_TYPES = Object.keys(PERSON_TYPE_LABELS) as PersonType[];
+
+/** Lowercase and without accents, to compare what the lawyer types with what is stored. */
+export function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+}

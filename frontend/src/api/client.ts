@@ -1,5 +1,9 @@
 import type {
   AskResult,
+  Client,
+  ClientFields,
+  ClientProposal,
+  ClientSummary,
   CreateDraftInput,
   DocumentCategory,
   Draft,
@@ -94,7 +98,8 @@ export const api = {
   getInteraction: (id: string) =>
     request<{ interaction: InteractionDetail }>(`/interactions/${id}`).then((r) => r.interaction),
 
-  listDrafts: () => request<{ drafts: DraftSummary[] }>('/drafts').then((r) => r.drafts),
+  listDrafts: (clientId?: string) =>
+    request<{ drafts: DraftSummary[] }>(`/drafts${clientId ? `?clientId=${clientId}` : ''}`).then((r) => r.drafts),
 
   getDraft: (id: string) => request<{ draft: Draft }>(`/drafts/${id}`).then((r) => r.draft),
 
@@ -107,4 +112,21 @@ export const api = {
   deleteDraft: (id: string) => request<void>(`/drafts/${id}`, { method: 'DELETE' }),
 
   draftDocxUrl: (id: string) => `/api/drafts/${id}/docx`,
+
+  listClients: () => request<{ clients: ClientSummary[] }>('/clients').then((r) => r.clients),
+
+  getClient: (id: string) => request<{ client: Client }>(`/clients/${id}`).then((r) => r.client),
+
+  createClient: (data: ClientFields) =>
+    request<{ client: Client }>('/clients', { method: 'POST', body: json(data) }).then((r) => r.client),
+
+  updateClient: (id: string, data: Partial<ClientFields>) =>
+    request<{ client: Client }>(`/clients/${id}`, { method: 'PATCH', body: json(data) }).then((r) => r.client),
+
+  deleteClient: (id: string) => request<void>(`/clients/${id}`, { method: 'DELETE' }),
+
+  analyzeNotes: (notes: string) =>
+    request<{ proposal: ClientProposal }>('/clients/analyze-notes', { method: 'POST', body: json({ notes }) }).then(
+      (r) => r.proposal,
+    ),
 };

@@ -1,6 +1,8 @@
 import { createBrowserRouter, Link } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import { Layout } from './components/Layout';
+import { ClientDetailPage } from './pages/ClientDetailPage';
+import { ClientsPage } from './pages/ClientsPage';
 import { ConsultPage } from './pages/ConsultPage';
 import { DraftDetailPage } from './pages/DraftDetailPage';
 import { DraftsPage } from './pages/DraftsPage';
@@ -24,6 +26,9 @@ const router = createBrowserRouter([
     element: <Layout />,
     children: [
       { index: true, element: <ConsultPage /> },
+      { path: 'clientes', element: <ClientsPage /> },
+      { path: 'clientes/nuevo', element: <ClientDetailPage /> },
+      { path: 'clientes/:id', element: <ClientDetailPage /> },
       { path: 'borradores', element: <DraftsPage /> },
       { path: 'borradores/:id', element: <DraftDetailPage /> },
       { path: 'biblioteca', element: <LibraryPage /> },

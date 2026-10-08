@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { analyzeNotesSchema, createClientSchema, updateClientSchema } from '../modules/clients/clients.schemas.js';
 import { updateDocumentSchema, uploadFieldsSchema } from '../modules/documents/documents.schemas.js';
 import { createDraftSchema, updateDraftSchema } from '../modules/drafts/drafts.schemas.js';
 import { askBodySchema, searchBodySchema } from '../modules/rag/rag.schemas.js';
@@ -40,6 +41,7 @@ export function buildOpenApiDocument() {
       { name: 'Sistema' },
       { name: 'Biblioteca', description: 'Documentos propios: legislación, jurisprudencia, doctrina y modelos' },
       { name: 'Consultas', description: 'Búsqueda en la biblioteca y respuestas con citas (RAG)' },
+      { name: 'Clientes', description: 'Fichas de cliente: datos, contraparte, caso y documentación que falta reunir' },
       { name: 'Borradores', description: 'Escritos y contratos redactados por el agente con la biblioteca como referencia' },
       { name: 'Historial', description: 'Interacciones registradas con los módulos de IA' },
     ],
@@ -126,13 +128,64 @@ export function buildOpenApiDocument() {
           },
         },
       },
+      '/api/clients': {
+        get: {
+          tags: ['Clientes'],
+          summary: 'Listar clientes (resumen, sin notas ni textos largos)',
+          responses: { 200: { description: 'Clientes con la cantidad de documentos pendientes' } },
+        },
+        post: {
+          tags: ['Clientes'],
+          summary: 'Crear la ficha de un cliente',
+          description: 'Solo el nombre es obligatorio.',
+          requestBody: { required: true, ...json(jsonSchema(createClientSchema)) },
+          responses: { 201: { description: 'Ficha creada' }, 400: errorResponse },
+        },
+      },
+      '/api/clients/analyze-notes': {
+        post: {
+          tags: ['Clientes'],
+          summary: 'Proponer una ficha a partir de las notas o la transcripción de la primera reunión',
+          description:
+            'La IA (Gemini) lee las notas y devuelve una propuesta para que el abogado la revise: no guarda nada. Los datos que no figuran en las notas quedan vacíos.',
+          requestBody: { required: true, ...json(jsonSchema(analyzeNotesSchema)) },
+          responses: {
+            200: { description: 'Propuesta de ficha y lista de documentación que falta reunir' },
+            400: errorResponse,
+            429: errorResponse,
+            502: errorResponse,
+            503: errorResponse,
+          },
+        },
+      },
+      '/api/clients/{id}': {
+        parameters: [idParam],
+        get: { tags: ['Clientes'], summary: 'Ficha completa de un cliente', responses: { 200: { description: 'OK' }, 404: errorResponse } },
+        patch: {
+          tags: ['Clientes'],
+          summary: 'Guardar cambios (solo los campos enviados)',
+          requestBody: { required: true, ...json(jsonSchema(updateClientSchema)) },
+          responses: { 200: { description: 'OK' }, 400: errorResponse, 404: errorResponse },
+        },
+        delete: {
+          tags: ['Clientes'],
+          summary: 'Eliminar un cliente',
+          description: 'Sus borradores se conservan, sin el vínculo con el cliente.',
+          responses: { 204: { description: 'Eliminado' }, 404: errorResponse },
+        },
+      },
       '/api/drafts': {
-        get: { tags: ['Borradores'], summary: 'Listar borradores (sin el texto)', responses: { 200: { description: 'OK' } } },
+        get: {
+          tags: ['Borradores'],
+          summary: 'Listar borradores (sin el texto)',
+          parameters: [{ name: 'clientId', in: 'query', description: 'Solo los borradores de este cliente', schema: { type: 'string', format: 'uuid' } }],
+          responses: { 200: { description: 'OK' }, 400: errorResponse },
+        },
         post: {
           tags: ['Borradores'],
           summary: 'Redactar un borrador con el agente',
           description:
-            'El agente busca en la biblioteca y lee el modelo base (si se eligió) antes de redactar. Puede tardar hasta un minuto.',
+            'El agente busca en la biblioteca y lee el modelo base y la ficha del cliente (si se eligieron) antes de redactar. Puede tardar hasta un minuto.',
           requestBody: { required: true, ...json(jsonSchema(createDraftSchema)) },
           responses: { 201: { description: 'Borrador creado' }, 400: errorResponse, 429: errorResponse, 502: errorResponse, 503: errorResponse },
         },
