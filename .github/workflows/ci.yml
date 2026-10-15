@@ -1,0 +1,80 @@
+name: CI
+
+# Corre en cada push a main y en cada pull request: si algo se rompe, se ve acá
+# antes de que llegue a main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Un push nuevo cancela la corrida anterior de la misma rama.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Revisar, compilar y probar
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # La misma base que usa el proyecto en tu computadora: PostgreSQL 17 con pgvector.
+    services:
+      db:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: lexsearch
+          POSTGRES_PASSWORD: lexsearch_dev
+          POSTGRES_DB: lexsearch
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lexsearch -d lexsearch"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      # Datos de desarrollo del .env.example: no son secretos. La clave de Gemini no se usa:
+      # los tests usan un modelo de IA simulado.
+      DATABASE_URL: postgresql://lexsearch:lexsearch_dev@localhost:5432/lexsearch
+      TEST_DATABASE_URL: postgresql://lexsearch:lexsearch_dev@localhost:5432/lexsearch_test
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v5
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      # También genera el cliente de Prisma (postinstall del backend).
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tipos (TypeScript)
+        run: npm run typecheck
+
+      - name: Compilar
+        run: npm run build
+
+      - name: Crear la base de pruebas
+        run: PGPASSWORD=lexsearch_dev psql -h localhost -U lexsearch -d lexsearch -c "CREATE DATABASE lexsearch_test;"
+
+      - name: Tests (unitarios y de integración)
+        run: npm test
+
+      # Las migraciones se escriben a mano: esto avisa si schema.prisma y las migraciones se desfasan.
+      - name: El esquema coincide con las migraciones
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://lexsearch:lexsearch_dev@localhost:5432/lexsearch_test
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
