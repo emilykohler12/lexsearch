@@ -1,0 +1,60 @@
+# LexSearch completo con las imágenes publicadas en GitHub (ghcr.io): base de datos + API + web.
+#
+#   docker compose -f docker-compose.prod.yml pull     (baja las versiones nuevas)
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Lee POSTGRES_PASSWORD (obligatoria) y GEMINI_API_KEY del archivo .env de la raíz.
+# Para un uso real cambiá POSTGRES_PASSWORD por una propia (solo letras y números).
+#
+# La web queda en http://localhost:8080 y SOLO en esta computadora (127.0.0.1): el sistema todavía
+# no tiene usuarios ni contraseña, así que no se expone a la red hasta la Fase 10.
+# Es independiente de docker-compose.yml (el entorno de desarrollo): tiene otra base de datos y otros volúmenes.
+name: lexsearch-prod
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lexsearch
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en el archivo .env}
+      POSTGRES_DB: lexsearch
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lexsearch -d lexsearch"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  api:
+    image: ${API_IMAGE:-ghcr.io/emilykohler12/lexsearch-api:latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://lexsearch:${POSTGRES_PASSWORD}@db:5432/lexsearch
+      CORS_ORIGIN: http://localhost:${WEB_PORT:-8080}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      GEMINI_FALLBACK_MODELS: ${GEMINI_FALLBACK_MODELS:-gemini-3.5-flash}
+      GEMINI_THINKING_LEVEL: ${GEMINI_THINKING_LEVEL:-}
+      SEARCH_MIN_SIMILARITY: ${SEARCH_MIN_SIMILARITY:-0.8}
+    volumes:
+      - storage:/app/backend/storage
+      - models:/app/backend/.cache
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/emilykohler12/lexsearch-web:latest}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
+
+volumes:
+  pgdata:
+  storage:
+  models:

@@ -12,8 +12,25 @@ updates:
     groups:
       menores-y-parches:
         update-types: [minor, patch]
+    ignore:
+      # Los tipos de Node tienen que ser los de la versión que usamos (24), no los de la última.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # Con TypeScript 7 los tests todavía fallan: se sube a mano cuando las herramientas lo soporten.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+
+  # Imágenes base de las dos imágenes de Docker (Node y nginx).
+  - package-ecosystem: docker
+    directories: [/backend, /frontend]
+    schedule:
+      interval: monthly
+    ignore:
+      # El salto de versión de Node se decide a mano (ver .nvmrc y "engines" del package.json).
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]

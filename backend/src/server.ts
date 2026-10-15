@@ -43,8 +43,8 @@ const { app, queue, documentsService, deadlineWatcher } = createApp({
   maxUploadMb: env.MAX_UPLOAD_MB,
 });
 
-const server = app.listen(env.PORT, '127.0.0.1', () => {
-  logger.info(`LexSearch API escuchando en http://localhost:${env.PORT} (docs: /api/docs)`);
+const server = app.listen(env.PORT, env.HOST, () => {
+  logger.info(`LexSearch API escuchando en http://${env.HOST}:${env.PORT} (docs: /api/docs)`);
   if (!llm) {
     logger.warn('GEMINI_API_KEY no configurada: la búsqueda funciona, las respuestas con IA quedan desactivadas');
   }

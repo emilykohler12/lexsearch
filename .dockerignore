@@ -1,0 +1,28 @@
+# Lo que no tiene que entrar a las imágenes de Docker: secretos, datos locales y archivos que
+# cada imagen genera por su cuenta.
+.git
+.github
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/*.log
+
+# Secretos
+.env
+.env.*
+!.env.example
+
+# Datos locales del sistema
+backend/storage
+backend/.cache
+
+# Cliente de Prisma: la imagen lo genera al instalar
+backend/src/generated
+
+# Tests y documentación: no hacen falta para ejecutar el sistema
+backend/tests
+docs
+docker
+docker-compose.yml
+LexSearch.pdf
+README.md

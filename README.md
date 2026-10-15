@@ -113,11 +113,39 @@ La clave es un secreto: el `.env` está excluido de git y nunca debe compartirse
 | `npm run lint` / `npm run typecheck` | Controles de calidad del código |
 | `npm run db:studio -w backend` | Explorador visual de la base de datos (Prisma Studio) |
 
+## Integración y entrega continuas (CI/CD)
+
+Corren solas en GitHub (pestaña **Actions** del repositorio) y se definen en [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+
+| Cuándo | Qué hace |
+| --- | --- |
+| Cada push a `main` y cada pull request | **CI:** instala las dependencias, revisa el código (lint y tipos), compila, corre todos los tests con una base PostgreSQL real y comprueba que el esquema coincida con las migraciones |
+| Cada push a `main` que pasó el CI | **CD:** construye las imágenes de Docker de la API y de la web, prueba el sistema completo con ellas y las publica en `ghcr.io` (con las etiquetas `latest` y `sha-…` del commit) |
+
+Una imagen que no arranca no se publica. Además, Dependabot abre pull requests con actualizaciones de dependencias (las de npm cada lunes; las de GitHub Actions y de las imágenes base, una vez por mes) y el CI las prueba antes de que decidas aceptarlas.
+
+**Usar las imágenes publicadas** (sin instalar Node ni compilar nada):
+
+1. Abrí Docker Desktop y esperá a que diga *Engine running*.
+2. En el `.env`, revisá `POSTGRES_PASSWORD` (para un uso real, poné una propia, solo con letras y números) y, si querés usar la IA, `GEMINI_API_KEY`.
+3. Bajá las imágenes y levantá todo:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d
+   ```
+
+4. Abrí **http://localhost:8080**.
+
+La primera vez, la API descarga los modelos de búsqueda y de OCR (hace falta internet y tarda unos minutos). La base, los documentos y los modelos quedan en volúmenes de Docker propios, separados de los del entorno de desarrollo (`npm run dev`). Para pasar a la última versión publicada: `docker compose -f docker-compose.prod.yml pull` y de nuevo `up -d`. Para apagarlo: `docker compose -f docker-compose.prod.yml down` (los datos se conservan).
+
+Queda disponible solo en esta computadora: el sistema todavía no tiene usuarios ni contraseña, así que no lo expongas a internet antes de la Fase 10.
+
 ## Estructura
 
 ```
 lexsearch/
 ├── backend/                  API (Node.js + TypeScript + Express + Prisma)
+│   ├── Dockerfile            Imagen de Docker de la API
 │   ├── prisma/               Esquema de datos y migraciones
 │   ├── prompts/              Prompts versionados (se editan acá, no en el código)
 │   ├── scripts/              Utilidades (descarga del modelo de embeddings)
@@ -139,10 +167,12 @@ lexsearch/
 │   │       ├── interactions/ Historial de interacciones con la IA
 │   │       └── health/       Estado del sistema
 │   └── tests/                Tests unitarios y de integración
-├── frontend/                 Interfaz web (React + TypeScript + Vite + Tailwind)
+├── frontend/                 Interfaz web (React + TypeScript + Vite + Tailwind), Dockerfile y nginx.conf
+├── .github/                  CI/CD (GitHub Actions) y actualizaciones automáticas (Dependabot)
 ├── docker/                   Inicialización de la base de datos
 ├── docs/                     Decisiones técnicas
-└── docker-compose.yml        PostgreSQL 17 + pgvector
+├── docker-compose.yml        Desarrollo: PostgreSQL 17 + pgvector
+└── docker-compose.prod.yml   Sistema completo con las imágenes publicadas (base + API + web)
 ```
 
 Cada módulo del backend sigue la misma separación de capas: `routes → controller → service → repository`. Los controllers solo validan la entrada (con zod) y delegan; la lógica vive en los services.
@@ -158,7 +188,7 @@ Cada módulo del backend sigue la misma separación de capas: `routes → contro
 ## Privacidad y seguridad
 
 - Los documentos completos **no salen de tu computadora**: el indexado usa un modelo local. A Gemini solo viajan la pregunta y los fragmentos relevantes de cada consulta; al redactar un borrador, también los datos del caso que cargaste, el texto del modelo base (o de los documentos que el asistente decida leer) y la ficha del cliente elegido; al tocar «Completar con IA» en una ficha, las notas de la reunión; y al leer una cédula o resolución, el texto del documento. Con el plan gratuito de la API, Google puede usar ese contenido para mejorar sus productos: activá la facturación antes de trabajar con datos reales de clientes (ver «Configurar Gemini»).
-- La API y la base escuchan solo en `127.0.0.1`: no son accesibles desde otras computadoras de la red.
+- La API y la base escuchan solo en `127.0.0.1`: no son accesibles desde otras computadoras de la red. Con `docker-compose.prod.yml` pasa lo mismo: solo se publica la web, y solo en `127.0.0.1`.
 - Los logs no registran contenido de documentos, preguntas ni respuestas (solo ids, cantidades y tiempos). Las consultas viajan en el cuerpo de la solicitud, nunca en la URL.
 - El contenido de los documentos se trata como **datos, nunca como instrucciones** (mitigación de inyección de prompt), y cada afirmación de la IA debe poder rastrearse a su fuente.
 - Antes de exponer el sistema fuera de esta computadora (Fase 10) hay que agregar autenticación, HTTPS, backups cifrados y la capa de anonimización. Ver [docs/decisiones.md](docs/decisiones.md).
@@ -183,7 +213,7 @@ Cada módulo del backend sigue la misma separación de capas: `routes → contro
 
 **"El modelo … ya no está disponible".** Google retira modelos viejos con frecuencia. Cambiá `GEMINI_MODEL` en `.env` por uno vigente (por ejemplo, el Flash más nuevo) y reiniciá.
 
-**"El puerto 5180 / 4000 / 5433 está en uso".** Otro programa lo está usando. Cerralo, o cambiá el puerto en `.env` (`PORT`, `POSTGRES_PORT` + `DATABASE_URL`) y en `frontend/vite.config.ts`.
+**"El puerto 5180 / 4000 / 5433 está en uso".** Otro programa lo está usando. Cerralo, o cambiá el puerto en `.env` (`PORT`, `POSTGRES_PORT` + `DATABASE_URL`) y en `frontend/vite.config.ts`. Con `docker-compose.prod.yml`, el de la web es `WEB_PORT` (por defecto `8080`).
 
 **Un escaneo o una foto queda en "Error: no se pudo reconocer texto".** El OCR no pudo leerlo: suele pasar con fotos borrosas, torcidas o con poca luz. Volvé a sacar la foto (derecha, con buena luz y de cerca) o escaneá el documento. Si tenés la versión digital, siempre es mejor subir esa.
 

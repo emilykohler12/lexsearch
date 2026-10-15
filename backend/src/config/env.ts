@@ -14,6 +14,8 @@ const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value);
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  // Por defecto la API escucha solo en esta computadora; dentro de un contenedor de Docker hay que usar 0.0.0.0.
+  HOST: z.string().default('127.0.0.1'),
   PORT: z.coerce.number().int().positive().default(4000),
   CORS_ORIGIN: z.string().default('http://localhost:5180'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
