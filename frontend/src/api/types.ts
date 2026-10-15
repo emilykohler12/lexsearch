@@ -211,6 +211,103 @@ export interface Client {
 /** The part of a client file the lawyer edits (what the API saves). */
 export type ClientFields = Omit<Client, 'id' | 'createdAt' | 'updatedAt'>;
 
+export type DayType = 'BUSINESS' | 'CALENDAR';
+export type DeadlineStatus = 'PENDING' | 'DONE';
+/** DONE: fulfilled; the others describe a pending deadline by how close its due date is. */
+export type DeadlineState = 'DONE' | 'OVERDUE' | 'TODAY' | 'SOON' | 'ONGOING';
+
+export interface Deadline {
+  id: string;
+  title: string;
+  caseReference: string;
+  notes: string;
+  client: ClientRef | null;
+  /** AAAA-MM-DD: the term starts the day after. */
+  notificationDate: string;
+  days: number;
+  dayType: DayType;
+  /** AAAA-MM-DD: the last day to act, calculated by the server. */
+  dueDate: string;
+  status: DeadlineStatus;
+  completedAt: string | null;
+  /** The sentence of the document that sets the term (when one was analyzed). */
+  sourceQuote: string;
+  /** Days until the due date in Argentina's calendar; negative when overdue. */
+  daysLeft: number;
+  state: DeadlineState;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** The part of a deadline the lawyer edits (what the API saves). */
+export interface DeadlineInput {
+  title: string;
+  caseReference: string;
+  notes: string;
+  clientId: string | null;
+  notificationDate: string;
+  days: number;
+  dayType: DayType;
+  sourceQuote: string;
+}
+
+/** A day that did not count towards a term, with the reason. */
+export interface SkippedDay {
+  date: string;
+  reason: string;
+}
+
+export interface DueDateCalculation {
+  dueDate: string;
+  skipped: SkippedDay[];
+  daysLeft: number;
+}
+
+/** A term found in a cédula or resolution; days = 0 when the document doesn't say how many. */
+export interface TermProposal {
+  title: string;
+  days: number;
+  dayType: DayType;
+  quote: string;
+  /** False when the AI's quote isn't in the document: check the term by hand. */
+  quoteVerified: boolean;
+}
+
+export interface DeadlineProposal {
+  summary: string;
+  documentDate: string;
+  notificationDate: string;
+  caseReference: string;
+  terms: TermProposal[];
+}
+
+export interface Holiday {
+  date: string;
+  name: string;
+}
+
+export interface NonWorkingDay {
+  id: string;
+  startDate: string;
+  endDate: string;
+  label: string;
+}
+
+export interface CalendarOverview {
+  year: number;
+  holidays: Holiday[];
+  customDays: NonWorkingDay[];
+}
+
+export interface AppNotification {
+  id: string;
+  kind: string;
+  deadlineId: string | null;
+  title: string;
+  message: string;
+  createdAt: string;
+}
+
 /** What the AI proposes from the notes of the first meeting; nothing is saved until the lawyer says so. */
 export interface ClientProposal {
   fullName: string;

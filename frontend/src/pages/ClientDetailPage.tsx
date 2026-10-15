@@ -1,4 +1,4 @@
-import { ChevronRight, FilePenLine, Sparkles, Trash2 } from 'lucide-react';
+import { CalendarClock, ChevronRight, FilePenLine, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import {
@@ -6,6 +6,7 @@ import {
   useClient,
   useClientDrafts,
   useCreateClient,
+  useDeadlines,
   useDeleteClient,
   useHealth,
   useUpdateClient,
@@ -14,6 +15,7 @@ import type { Client, ChecklistItem } from '../api/types';
 import { UnsavedChangesDialog } from '../components/UnsavedChangesDialog';
 import { Alert, Dialog, PracticeAreaBadge, Spinner } from '../components/ui';
 import { ChecklistEditor } from '../features/clients/ChecklistEditor';
+import { DeadlineWhen } from '../features/deadlines/DeadlineWhen';
 import {
   applyProposal,
   changesFrom,
@@ -23,12 +25,13 @@ import {
   type ClientForm,
   type FieldName,
 } from '../features/clients/client-form';
-import { SelectField, TextAreaField, TextField } from '../features/clients/fields';
+import { SelectField, TextAreaField, TextField } from '../components/fields';
 import { useSaveShortcut } from '../hooks/useSaveShortcut';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import {
   DRAFT_TYPE_LABELS,
   formatDate,
+  formatDay,
   PERSON_TYPE_LABELS,
   PERSON_TYPES,
   plural,
@@ -400,10 +403,16 @@ function ClientEditor({ client }: { client: Client | null }) {
       <div className="sticky bottom-0 z-10 -mx-4 border-t border-line bg-paper/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
         <div className="flex flex-wrap items-center gap-2">
           {client && (
-            <Link to={`/borradores?cliente=${client.id}`} className="btn-secondary min-h-11 sm:min-h-0">
-              <FilePenLine className="size-4" aria-hidden />
-              Redactar borrador
-            </Link>
+            <>
+              <Link to={`/borradores?cliente=${client.id}`} className="btn-secondary min-h-11 sm:min-h-0">
+                <FilePenLine className="size-4" aria-hidden />
+                Redactar borrador
+              </Link>
+              <Link to={`/plazos/nuevo?cliente=${client.id}`} className="btn-secondary min-h-11 sm:min-h-0">
+                <CalendarClock className="size-4" aria-hidden />
+                Nuevo plazo
+              </Link>
+            </>
           )}
           <div className="ml-auto flex items-center gap-2">
             {client && (
@@ -426,6 +435,7 @@ function ClientEditor({ client }: { client: Client | null }) {
         </div>
       </div>
 
+      {client && <ClientDeadlines clientId={client.id} />}
       {client && <ClientDrafts clientId={client.id} />}
 
       <UnsavedChangesDialog blocker={blocker} saving={saving} onSaveAndLeave={() => void saveAndLeave()} />
@@ -478,6 +488,36 @@ function ClientDrafts({ clientId }: { clientId: string }) {
                 <p className="mt-0.5 text-xs text-muted">
                   {DRAFT_TYPE_LABELS[draft.documentType]} · actualizado el {formatDate(draft.updatedAt)}
                 </p>
+              </div>
+              <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Pending deadlines of this client (only shown when there are any). */
+function ClientDeadlines({ clientId }: { clientId: string }) {
+  const { data: deadlines } = useDeadlines({ status: 'PENDING', clientId });
+  if (!deadlines || deadlines.length === 0) return null;
+
+  return (
+    <section aria-labelledby="client-deadlines-title" className="space-y-3">
+      <h2 id="client-deadlines-title" className="text-lg">
+        Plazos pendientes
+      </h2>
+      <ul className="card divide-y divide-line">
+        {deadlines.map((deadline) => (
+          <li key={deadline.id}>
+            <Link to={`/plazos/${deadline.id}`} className="flex items-center gap-4 px-4 py-4 hover:bg-paper/70 sm:px-5">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium break-words">{deadline.title}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted">
+                  <DeadlineWhen state={deadline.state} daysLeft={deadline.daysLeft} />
+                  <span>{formatDay(deadline.dueDate)}</span>
+                </div>
               </div>
               <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
             </Link>

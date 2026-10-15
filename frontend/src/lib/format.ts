@@ -1,4 +1,4 @@
-import type { DocumentCategory, DocumentStatus, DraftType, PersonType, PracticeArea } from '../api/types';
+import type { DayType, DocumentCategory, DocumentStatus, DraftType, PersonType, PracticeArea } from '../api/types';
 
 export const CATEGORY_LABELS: Record<DocumentCategory, string> = {
   LEGISLACION: 'Legislación',
@@ -86,4 +86,46 @@ export function normalizeText(text: string): string {
     .toLowerCase()
     .normalize('NFD')
     .replace(/\p{M}/gu, '');
+}
+
+export const DAY_TYPE_LABELS: Record<DayType, string> = {
+  BUSINESS: 'Hábiles',
+  CALENDAR: 'Corridos',
+};
+
+export const DAY_TYPES = Object.keys(DAY_TYPE_LABELS) as DayType[];
+
+/** "1 día hábil", "15 días hábiles", "10 días corridos". */
+export function termText(days: number, dayType: DayType): string {
+  if (days === 1) return dayType === 'BUSINESS' ? '1 día hábil' : '1 día corrido';
+  return `${days} días ${dayType === 'BUSINESS' ? 'hábiles' : 'corridos'}`;
+}
+
+const WEEKDAYS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+
+/** "vie 23/10/2026" from AAAA-MM-DD, read as plain text: no time zone can move it a day. */
+export function formatDay(iso: string): string {
+  const [year = '', month = '', day = ''] = iso.split('-');
+  const weekday = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))).getUTCDay();
+  return `${WEEKDAYS[weekday]} ${day}/${month}/${year}`;
+}
+
+/** Today's date in Argentina as AAAA-MM-DD, whatever the computer's own time zone is. */
+export function todayInArgentina(): string {
+  // The "en-CA" locale writes dates as YYYY-MM-DD.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+/** "Vence en 5 días", "Vence hoy", "Venció ayer"… */
+export function whenText(daysLeft: number): string {
+  if (daysLeft < -1) return `Venció hace ${-daysLeft} días`;
+  if (daysLeft === -1) return 'Venció ayer';
+  if (daysLeft === 0) return 'Vence hoy';
+  if (daysLeft === 1) return 'Vence mañana';
+  return `Vence en ${daysLeft} días`;
 }

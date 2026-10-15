@@ -1,6 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import type { ClientFields, CreateDraftInput, DocumentCategory, SearchFilters } from './types';
+import type {
+  ClientFields,
+  CreateDraftInput,
+  DeadlineInput,
+  DeadlineStatus,
+  DocumentCategory,
+  SearchFilters,
+} from './types';
 
 export const queryKeys = {
   health: ['health'] as const,
@@ -13,6 +20,14 @@ export const queryKeys = {
   draft: (id: string) => ['drafts', 'detail', id] as const,
   clients: ['clients', 'list'] as const,
   client: (id: string) => ['clients', 'detail', id] as const,
+  // Everything about deadlines starts with 'deadlines': one invalidation refreshes lists, details and previews.
+  deadlines: ['deadlines'] as const,
+  deadlineList: (filters: { status?: DeadlineStatus | undefined; clientId?: string | undefined }) =>
+    ['deadlines', 'list', filters] as const,
+  deadline: (id: string) => ['deadlines', 'detail', id] as const,
+  dueDate: (term: Pick<DeadlineInput, 'notificationDate' | 'days' | 'dayType'>) => ['deadlines', 'due-date', term] as const,
+  calendar: (year: number) => ['calendar', year] as const,
+  notifications: ['notifications'] as const,
 };
 
 export function useHealth() {
@@ -196,4 +211,111 @@ export function useDeleteClient() {
 /** Reads the notes of a first meeting and proposes a client file; saves nothing. */
 export function useAnalyzeNotes() {
   return useMutation({ mutationFn: api.analyzeNotes });
+}
+
+export function useDeadlines(filters: { status?: DeadlineStatus; clientId?: string } = {}) {
+  return useQuery({ queryKey: queryKeys.deadlineList(filters), queryFn: () => api.listDeadlines(filters) });
+}
+
+export function useDeadline(id: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.deadline(id ?? ''),
+    queryFn: () => api.getDeadline(id!),
+    enabled: Boolean(id),
+  });
+}
+
+/** Saving, completing or deleting a deadline also changes the warnings about it. */
+function useRefreshDeadlines() {
+  const queryClient = useQueryClient();
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.deadlines });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
+  };
+}
+
+export function useCreateDeadlines() {
+  const refresh = useRefreshDeadlines();
+  return useMutation({ mutationFn: (items: DeadlineInput[]) => api.createDeadlines(items), onSuccess: refresh });
+}
+
+export function useUpdateDeadline() {
+  const refresh = useRefreshDeadlines();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string } & Partial<DeadlineInput> & { status?: DeadlineStatus }) =>
+      api.updateDeadline(id, data),
+    onSuccess: refresh,
+  });
+}
+
+export function useDeleteDeadline() {
+  const refresh = useRefreshDeadlines();
+  return useMutation({ mutationFn: api.deleteDeadline, onSuccess: refresh });
+}
+
+/** The due date a term would have: the editor shows it as the lawyer types (null while the term is incomplete). */
+export function useDueDate(term: Pick<DeadlineInput, 'notificationDate' | 'days' | 'dayType'> | null) {
+  return useQuery({
+    queryKey: term ? queryKeys.dueDate(term) : ['deadlines', 'due-date', 'none'],
+    queryFn: () => api.calculateDueDate(term!),
+    enabled: term !== null,
+    placeholderData: keepPreviousData,
+    // The days left change with the date, not with the term.
+    staleTime: 60_000,
+  });
+}
+
+/** Reads a cédula or resolution and proposes its terms; saves nothing. */
+export function useAnalyzeDeadlineDocument() {
+  return useMutation({ mutationFn: api.analyzeDeadlineDocument });
+}
+
+export function useCalendar(year: number) {
+  return useQuery({ queryKey: queryKeys.calendar(year), queryFn: () => api.getCalendar(year) });
+}
+
+/** The lawyer's non-working days move the due date of pending deadlines. */
+function useRefreshCalendar() {
+  const queryClient = useQueryClient();
+  const refreshDeadlines = useRefreshDeadlines();
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: ['calendar'] });
+    refreshDeadlines();
+  };
+}
+
+export function useAddNonWorkingDay() {
+  const refresh = useRefreshCalendar();
+  return useMutation({ mutationFn: api.addNonWorkingDay, onSuccess: refresh });
+}
+
+export function useDeleteNonWorkingDay() {
+  const refresh = useRefreshCalendar();
+  return useMutation({ mutationFn: api.deleteNonWorkingDay, onSuccess: refresh });
+}
+
+/** Unread warnings; checked every minute so a deadline that becomes urgent shows up while the page is open. */
+export function useNotifications() {
+  return useQuery({
+    queryKey: queryKeys.notifications,
+    queryFn: api.listNotifications,
+    refetchInterval: 60_000,
+    retry: false,
+  });
+}
+
+export function useMarkNotificationRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.markNotificationRead,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.notifications }),
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.markAllNotificationsRead,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.notifications }),
+  });
 }

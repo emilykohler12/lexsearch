@@ -11,6 +11,7 @@ export const PROMPT_VERSIONS = {
   ragAnswer: 'rag-answer.v2',
   draftGenerator: 'draft-generator.v2',
   clientIntake: 'client-intake.v1',
+  deadlineExtraction: 'deadline-extraction.v1',
 } as const;
 
 export interface Prompt {

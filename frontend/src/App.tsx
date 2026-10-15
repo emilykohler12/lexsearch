@@ -4,10 +4,13 @@ import { Layout } from './components/Layout';
 import { ClientDetailPage } from './pages/ClientDetailPage';
 import { ClientsPage } from './pages/ClientsPage';
 import { ConsultPage } from './pages/ConsultPage';
+import { DeadlineEditorPage } from './pages/DeadlineEditorPage';
 import { DraftDetailPage } from './pages/DraftDetailPage';
 import { DraftsPage } from './pages/DraftsPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LibraryPage } from './pages/LibraryPage';
+import { NonWorkingDaysPage } from './pages/NonWorkingDaysPage';
+import { PlazosPage } from './pages/PlazosPage';
 
 function NotFound() {
   return (
@@ -29,6 +32,10 @@ const router = createBrowserRouter([
       { path: 'clientes', element: <ClientsPage /> },
       { path: 'clientes/nuevo', element: <ClientDetailPage /> },
       { path: 'clientes/:id', element: <ClientDetailPage /> },
+      { path: 'plazos', element: <PlazosPage /> },
+      { path: 'plazos/nuevo', element: <DeadlineEditorPage /> },
+      { path: 'plazos/inhabiles', element: <NonWorkingDaysPage /> },
+      { path: 'plazos/:id', element: <DeadlineEditorPage /> },
       { path: 'borradores', element: <DraftsPage /> },
       { path: 'borradores/:id', element: <DraftDetailPage /> },
       { path: 'biblioteca', element: <LibraryPage /> },

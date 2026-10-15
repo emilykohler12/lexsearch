@@ -11,11 +11,12 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router';
-import { useHealth } from '../api/hooks';
+import { useHealth, useNotifications } from '../api/hooks';
 
-const NAV: Array<{ to: string; label: string; icon: LucideIcon; end?: boolean }> = [
+const NAV: Array<{ to: string; label: string; icon: LucideIcon; end?: boolean; alerts?: boolean }> = [
   { to: '/', label: 'Consultar', icon: MessageSquareText, end: true },
   { to: '/clientes', label: 'Clientes', icon: Users },
+  { to: '/plazos', label: 'Plazos', icon: CalendarClock, alerts: true },
   { to: '/borradores', label: 'Borradores', icon: FilePenLine },
   { to: '/biblioteca', label: 'Biblioteca', icon: BookOpen },
   { to: '/historial', label: 'Historial', icon: History },
@@ -23,7 +24,6 @@ const NAV: Array<{ to: string; label: string; icon: LucideIcon; end?: boolean }>
 
 // Roadmap modules, shown so the lawyer knows what's coming.
 const UPCOMING: Array<{ label: string; icon: LucideIcon; phase: number }> = [
-  { label: 'Plazos', icon: CalendarClock, phase: 4 },
   { label: 'Expedientes', icon: FolderKanban, phase: 5 },
 ];
 
@@ -55,7 +55,25 @@ function Brand() {
   );
 }
 
+/** Number of warnings the lawyer hasn't read yet (deadlines about to expire or already expired). */
+function useUnreadWarnings(): number {
+  return useNotifications().data?.length ?? 0;
+}
+
+function WarningsBadge({ count, className = '' }: { count: number; className?: string }) {
+  if (count === 0) return null;
+  return (
+    <span
+      className={`grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] leading-none font-semibold text-white ${className}`}
+    >
+      <span aria-hidden>{count > 9 ? '9+' : count}</span>
+      <span className="sr-only">{count === 1 ? '1 aviso sin leer' : `${count} avisos sin leer`}</span>
+    </span>
+  );
+}
+
 function DesktopSidebar() {
+  const warnings = useUnreadWarnings();
   return (
     <aside className="hidden shrink-0 flex-col bg-navy-900 text-white/85 md:sticky md:top-0 md:flex md:h-screen md:w-64">
       <div className="px-5 py-5">
@@ -63,7 +81,7 @@ function DesktopSidebar() {
       </div>
 
       <nav aria-label="Principal" className="flex flex-col gap-1 px-3 pb-3">
-        {NAV.map(({ to, label, icon: Icon, end }) => (
+        {NAV.map(({ to, label, icon: Icon, end, alerts }) => (
           <NavLink
             key={to}
             to={to}
@@ -76,6 +94,7 @@ function DesktopSidebar() {
           >
             <Icon className="size-4" aria-hidden />
             {label}
+            {alerts && <WarningsBadge count={warnings} className="ml-auto" />}
           </NavLink>
         ))}
       </nav>
@@ -99,26 +118,30 @@ function DesktopSidebar() {
 }
 
 function MobileHeader() {
+  const warnings = useUnreadWarnings();
   return (
     <header className="sticky top-0 z-20 bg-navy-900 text-white/85 shadow-sm md:hidden">
       <div className="px-4 py-3">
         <Brand />
       </div>
 
-      <nav aria-label="Principal" className="grid grid-cols-5 border-t border-white/10">
-        {NAV.map(({ to, label, icon: Icon, end }) => (
+      <nav aria-label="Principal" className="grid grid-cols-6 border-t border-white/10">
+        {NAV.map(({ to, label, icon: Icon, end, alerts }) => (
           <NavLink
             key={to}
             to={to}
             end={end}
             className={({ isActive }) =>
-              `flex min-h-12 flex-col items-center justify-center gap-0.5 border-b-2 text-xs transition-colors ${
+              `flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 border-b-2 px-0.5 text-[11px] transition-colors ${
                 isActive ? 'border-brass-500 font-medium text-white' : 'border-transparent text-white/60'
               }`
             }
           >
-            <Icon className="size-4" aria-hidden />
-            {label}
+            <span className="relative">
+              <Icon className="size-4" aria-hidden />
+              {alerts && <WarningsBadge count={warnings} className="absolute -top-2 left-2.5" />}
+            </span>
+            <span className="max-w-full truncate">{label}</span>
           </NavLink>
         ))}
       </nav>

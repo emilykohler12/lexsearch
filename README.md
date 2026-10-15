@@ -1,6 +1,6 @@
 # LexSearch
 
-Sistema de inteligencia artificial personal para un abogado: una **biblioteca consultable** (leyes, jurisprudencia, doctrina y modelos propios) que responde preguntas en lenguaje natural **citando el fragmento exacto de cada fuente**, un **asistente que redacta borradores** de escritos y contratos a partir de esa biblioteca, y **fichas de cliente** que se arman a partir de las notas de la primera reunión. En las próximas fases: control de plazos, expedientes y más.
+Sistema de inteligencia artificial personal para un abogado: una **biblioteca consultable** (leyes, jurisprudencia, doctrina y modelos propios) que responde preguntas en lenguaje natural **citando el fragmento exacto de cada fuente**, un **asistente que redacta borradores** de escritos y contratos a partir de esa biblioteca, **fichas de cliente** que se arman a partir de las notas de la primera reunión, y un **control de plazos** que lee cédulas y resoluciones, calcula los vencimientos y avisa antes de que venzan. En las próximas fases: expedientes y más.
 
 > **Principio rector:** todo contenido generado es una propuesta que el abogado revisa y valida. El sistema no reemplaza el criterio profesional ni asesora por sí mismo.
 
@@ -12,7 +12,7 @@ Sistema de inteligencia artificial personal para un abogado: una **biblioteca co
 | 1 | RAG básico: subir documentos, fragmentar, embeddings, búsqueda y respuestas con citas | ✅ Hecha |
 | 2 | Generador de borradores de escritos y contratos | ✅ Hecha |
 | 3 | Ficha de cliente / CRM simplificado | ✅ Hecha |
-| 4 | Control de plazos y notificaciones | Siguiente |
+| 4 | Control de plazos y notificaciones | ✅ Hecha |
 | 5 | Timeline automático de expediente | Pendiente |
 | 6 | Detector de contradicciones | Pendiente |
 | 7 | Vigía normativo (Boletín Oficial) | Pendiente |
@@ -30,6 +30,7 @@ Las decisiones técnicas y su justificación están en [docs/decisiones.md](docs
 - **Respuestas con IA (Gemini):** redacta la respuesta usando solo los fragmentos recuperados y marca cada afirmación con su fuente. Antes de mostrar una cita, el servidor verifica que la frase exista textualmente en el fragmento. Al hacer clic en una cita ves ese texto resaltado y podés abrir el PDF original en esa página.
 - **Borradores con IA:** elegís el tipo de documento (carta documento, contrato, demanda, contestación u otro escrito), opcionalmente un modelo base de tu biblioteca, y cargás los datos del caso y qué necesitás. Un asistente de IA lee el modelo, busca en tu biblioteca cláusulas, normas y jurisprudencia, y redacta el borrador. Solo cita normas que encontró en tu biblioteca (si no la encuentra, deja `[COMPLETAR: norma aplicable]` en lugar de escribirla de memoria; igual conviene revisar siempre las citas); los datos que faltan quedan marcados como `[COMPLETAR: …]` y resaltados. Si elegís un cliente, el asistente lee su ficha (datos propios y de la contraparte, conflicto y notas) antes de redactar. Podés editarlo y guardarlo (botón «Guardar» o `Ctrl + S`), copiarlo o descargarlo en Word (.docx), y ver qué documentos consultó.
 - **Clientes:** una ficha por cliente con sus datos, la contraparte, el resumen del conflicto, la pretensión y un checklist de la documentación que falta reunir. Podés cargarla a mano o pegar las notas (o la transcripción) de la primera reunión y tocar «Completar con IA»: la IA propone los datos y el checklist, resaltados para que los revises; solo completa lo que está vacío, no pisa lo que escribiste, y no guarda nada hasta que tocás «Guardar». Desde la ficha podés redactar un borrador para ese cliente.
+- **Plazos:** cargás un plazo a mano (fecha de notificación + cantidad de días, hábiles o corridos) o subís una cédula o resolución (PDF, foto o escaneo, Word o texto) y la IA propone los plazos que otorga, con la frase exacta del documento. El vencimiento **lo calcula el sistema**, nunca la IA: el día de la notificación no cuenta, y en días hábiles se saltan sábados, domingos, feriados nacionales y Semana Santa. Podés ver día por día cuáles no se contaron para chequearlo contra el juzgado. En «Días inhábiles» cargás lo que cambia según tu juzgado (feria judicial, asuetos, feriados locales, días no laborables que decreta el Gobierno): al agregarlos o quitarlos, los plazos pendientes se recalculan solos. Un vigía revisa cada hora y te avisa a los 3 días, a 1 día, el día del vencimiento y cuando ya venció (aviso en la pantalla y un globito rojo en el menú).
 - **Historial:** cada consulta queda registrada con su respuesta, las fuentes, el modelo y la versión del prompt. Los borradores también quedan registrados en la base con el texto original de la IA, aunque después los edites.
 - **API documentada** en `http://localhost:4000/api/docs` (Swagger).
 
@@ -129,7 +130,10 @@ lexsearch/
 │   │       ├── documents/    Biblioteca: subida, extracción, fragmentación, indexado
 │   │       ├── embeddings/   Modelo local de embeddings
 │   │       ├── rag/          Búsqueda híbrida y respuestas con citas
+│   │       ├── calendar/     Feriados nacionales, días inhábiles propios y cálculo de vencimientos
 │   │       ├── clients/      Fichas de cliente y lectura de las notas de la primera reunión con IA
+│   │       ├── deadlines/    Plazos y lectura de cédulas y resoluciones con IA
+│   │       ├── notifications/ Avisos y vigía de plazos por vencer (node-cron)
 │   │       ├── drafts/       Borradores: asistente de redacción, edición y exportación a Word
 │   │       ├── llm/          Proveedor de IA (Gemini) detrás de una interfaz
 │   │       ├── interactions/ Historial de interacciones con la IA
@@ -148,11 +152,12 @@ Cada módulo del backend sigue la misma separación de capas: `routes → contro
 1. **Al subir un documento:** se guarda el original con un nombre aleatorio → se extrae el texto por página → se divide en fragmentos de ~1.200 caracteres respetando párrafos → cada fragmento se convierte en un vector con un modelo que corre en tu computadora → se guarda en PostgreSQL (pgvector).
 2. **Al preguntar:** la pregunta se convierte en vector → se buscan los fragmentos más parecidos por significado y por palabras, descartando los que no alcanzan una similitud mínima → se combinan ambos rankings → los 8 mejores se envían a Gemini → Gemini responde en bloques, indicando para cada uno el fragmento que lo respalda y una frase copiada textualmente → el servidor verifica cada frase contra el fragmento original y solo resalta las que existen de verdad. Si no hay ningún fragmento relacionado, responde eso mismo sin consultar a Gemini.
 3. **Al pedir un borrador:** el pedido (tipo, datos del caso, indicaciones y modelo base) se envía a Gemini junto con dos herramientas: *buscar en la biblioteca* y *leer un documento*. Gemini decide qué buscar y qué leer (hasta 4 rondas); cada búsqueda la ejecuta el servidor en tu base local y le devuelve solo esos resultados. Si elegiste un cliente, también tiene una herramienta para leer la ficha de ese cliente (y solo la de ese). Con eso redacta el borrador, que se guarda junto con la lista de lo que consultó.
-4. **Al completar una ficha con IA:** las notas de la reunión se envían a Gemini con la instrucción de devolver los datos de la ficha en un formato fijo, dejando vacío lo que no figura. El servidor limpia la respuesta (códigos válidos, sin marcadores tipo «no consta», sin documentos repetidos) y la interfaz la vuelca en el formulario sin guardar nada.
+4. **Al leer una cédula o resolución:** se extrae el texto del archivo (con OCR si es una foto o un escaneo) → se envía a Gemini con la instrucción de devolver solo los plazos que el documento otorga, la fecha de notificación (únicamente si consta de forma expresa) y la carátula → el servidor verifica que la frase citada exista en el documento y limpia la respuesta → la pantalla te muestra los plazos para que los confirmes. El archivo se lee y se descarta: no se guarda ni se agrega a la biblioteca. El vencimiento lo calcula después el servidor con el calendario.
+5. **Al completar una ficha con IA:** las notas de la reunión se envían a Gemini con la instrucción de devolver los datos de la ficha en un formato fijo, dejando vacío lo que no figura. El servidor limpia la respuesta (códigos válidos, sin marcadores tipo «no consta», sin documentos repetidos) y la interfaz la vuelca en el formulario sin guardar nada.
 
 ## Privacidad y seguridad
 
-- Los documentos completos **no salen de tu computadora**: el indexado usa un modelo local. A Gemini solo viajan la pregunta y los fragmentos relevantes de cada consulta; al redactar un borrador, también los datos del caso que cargaste, el texto del modelo base (o de los documentos que el asistente decida leer) y la ficha del cliente elegido; y al tocar «Completar con IA» en una ficha, las notas de la reunión. Con el plan gratuito de la API, Google puede usar ese contenido para mejorar sus productos: activá la facturación antes de trabajar con datos reales de clientes (ver «Configurar Gemini»).
+- Los documentos completos **no salen de tu computadora**: el indexado usa un modelo local. A Gemini solo viajan la pregunta y los fragmentos relevantes de cada consulta; al redactar un borrador, también los datos del caso que cargaste, el texto del modelo base (o de los documentos que el asistente decida leer) y la ficha del cliente elegido; al tocar «Completar con IA» en una ficha, las notas de la reunión; y al leer una cédula o resolución, el texto del documento. Con el plan gratuito de la API, Google puede usar ese contenido para mejorar sus productos: activá la facturación antes de trabajar con datos reales de clientes (ver «Configurar Gemini»).
 - La API y la base escuchan solo en `127.0.0.1`: no son accesibles desde otras computadoras de la red.
 - Los logs no registran contenido de documentos, preguntas ni respuestas (solo ids, cantidades y tiempos). Las consultas viajan en el cuerpo de la solicitud, nunca en la URL.
 - El contenido de los documentos se trata como **datos, nunca como instrucciones** (mitigación de inyección de prompt), y cada afirmación de la IA debe poder rastrearse a su fuente.
@@ -169,6 +174,8 @@ Cada módulo del backend sigue la misma separación de capas: `routes → contro
 5. Abrí Docker Desktop **desde el menú Inicio**.
 
 **"Gemini no está disponible en este momento" o "límite de uso".** El modelo está saturado o se agotó el cupo (en el plan gratuito es bajo). La app ya prueba sola el modelo de respaldo (`GEMINI_FALLBACK_MODELS`); si el error sigue, esperá unos minutos o agregá otro modelo de respaldo. La lista de modelos disponibles está en Google AI Studio.
+
+**El vencimiento no coincide con el del juzgado.** Abrí el plazo y mirá «Cómo se contó»: ahí figura cada día que no se contó y por qué. Si el juzgado cuenta otros días inhábiles (feria judicial, asueto, un feriado local o un día no laborable decretado, por ejemplo los «puentes» turísticos), cargalos en Plazos → «Días inhábiles» y el plazo se recalcula. Tené en cuenta que el sistema no modela el plazo de gracia de las dos primeras horas del día hábil siguiente: el vencimiento que muestra es el último día; conviene presentar antes.
 
 **La búsqueda no encuentra algo que sí está en un documento.** Probá con las palabras exactas del texto (esa búsqueda no tiene umbral). Si igual hace falta, bajá un poco `SEARCH_MIN_SIMILARITY` en `.env` (por defecto `0.8`; más bajo muestra más resultados, pero también algunos sin relación) y reiniciá.
 

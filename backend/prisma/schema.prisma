@@ -1,7 +1,7 @@
 // Modelo de datos de LexSearch.
 // Fase 1: biblioteca de documentos + fragmentos (RAG) + registro de interacciones con la IA.
-// Fase 2: borradores. Fase 3: clientes.
-// Las próximas fases agregan Expediente, Actuación, Plazo y Notificación.
+// Fase 2: borradores. Fase 3: clientes. Fase 4: plazos, días inhábiles y avisos.
+// Las próximas fases agregan Expediente y Actuación.
 
 generator client {
   provider            = "prisma-client"
@@ -169,7 +169,69 @@ model Client {
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
   drafts               Draft[]
+  deadlines            Deadline[]
 
   @@index([fullName])
   @@map("clients")
+}
+
+/// Plazo procesal o contractual (Fase 4). El vencimiento se calcula con el calendario (calendar/business-days.ts).
+model Deadline {
+  id               String         @id @default(uuid()) @db.Uuid
+  title            String
+  /// Carátula, número de expediente y juzgado, en texto libre (la Fase 5 lo reemplaza por el expediente).
+  caseReference    String         @default("") @map("case_reference")
+  notes            String         @default("")
+  clientId         String?        @map("client_id") @db.Uuid
+  /// Fecha de la notificación: el cómputo empieza al día siguiente.
+  notificationDate DateTime       @map("notification_date") @db.Date
+  days             Int
+  /// BUSINESS (días hábiles) o CALENDAR (días corridos).
+  dayType          String         @map("day_type")
+  /// Último día del plazo. Se calcula al guardar y se recalcula si cambia el calendario de días inhábiles.
+  dueDate          DateTime       @map("due_date") @db.Date
+  /// PENDING o DONE. "Vencido" no se guarda: es un plazo pendiente cuya fecha ya pasó.
+  status           String         @default("PENDING")
+  completedAt      DateTime?      @map("completed_at")
+  /// Frase del documento que fija el plazo (cuando se analizó una cédula o una resolución).
+  sourceQuote      String         @default("") @map("source_quote")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  client           Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  notifications    Notification[]
+
+  @@index([status, dueDate])
+  @@index([clientId])
+  @@map("deadlines")
+}
+
+/// Días en que no corren los plazos y que no son feriados nacionales (esos se calculan solos):
+/// feria judicial, asuetos, feriados provinciales o municipales, días no laborables decretados.
+model NonWorkingDay {
+  id        String   @id @default(uuid()) @db.Uuid
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+  label     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([startDate])
+  @@map("non_working_days")
+}
+
+/// Avisos generados por el sistema: hoy, plazos por vencer; más adelante, novedades normativas.
+model Notification {
+  id         String    @id @default(uuid()) @db.Uuid
+  /// DEADLINE_SOON_3, DEADLINE_SOON_1, DEADLINE_TODAY o DEADLINE_OVERDUE.
+  kind       String
+  deadlineId String?   @map("deadline_id") @db.Uuid
+  title      String
+  message    String
+  readAt     DateTime? @map("read_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  deadline   Deadline? @relation(fields: [deadlineId], references: [id], onDelete: Cascade)
+
+  /// Un solo aviso de cada tipo por plazo (el vigía puede correr muchas veces).
+  @@unique([deadlineId, kind])
+  @@index([readAt, createdAt])
+  @@map("notifications")
 }

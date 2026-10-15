@@ -9,10 +9,19 @@ import { buildOpenApiDocument } from './docs/openapi.js';
 import type { FileStorage } from './lib/file-storage.js';
 import type { Logger } from './lib/logger.js';
 import { errorHandler, notFoundHandler } from './middlewares/error-handler.js';
+import { CalendarController } from './modules/calendar/calendar.controller.js';
+import { calendarRouter } from './modules/calendar/calendar.routes.js';
+import { CalendarService } from './modules/calendar/calendar.service.js';
+import { NonWorkingDaysRepository } from './modules/calendar/non-working-days.repository.js';
 import { ClientsController } from './modules/clients/clients.controller.js';
 import { ClientsRepository } from './modules/clients/clients.repository.js';
 import { clientsRouter } from './modules/clients/clients.routes.js';
 import { ClientsService } from './modules/clients/clients.service.js';
+import { DeadlineAnalysisService } from './modules/deadlines/deadline-analysis.service.js';
+import { DeadlinesController } from './modules/deadlines/deadlines.controller.js';
+import { DeadlinesRepository } from './modules/deadlines/deadlines.repository.js';
+import { deadlinesRouter } from './modules/deadlines/deadlines.routes.js';
+import { DeadlinesService } from './modules/deadlines/deadlines.service.js';
 import { DocumentTextReader } from './modules/documents/document-text.js';
 import { DocumentsController } from './modules/documents/documents.controller.js';
 import { DocumentsRepository } from './modules/documents/documents.repository.js';
@@ -30,6 +39,11 @@ import { InteractionsController } from './modules/interactions/interactions.cont
 import { InteractionsRepository } from './modules/interactions/interactions.repository.js';
 import { interactionsRouter } from './modules/interactions/interactions.routes.js';
 import type { LlmProvider } from './modules/llm/llm-provider.js';
+import { DeadlineWatcher } from './modules/notifications/deadline-watcher.js';
+import { NotificationsController } from './modules/notifications/notifications.controller.js';
+import { NotificationsRepository } from './modules/notifications/notifications.repository.js';
+import { notificationsRouter } from './modules/notifications/notifications.routes.js';
+import { NotificationsService } from './modules/notifications/notifications.service.js';
 import type { OcrEngine } from './modules/ocr/ocr-engine.js';
 import { RagController } from './modules/rag/rag.controller.js';
 import { RagRepository } from './modules/rag/rag.repository.js';
@@ -73,6 +87,28 @@ export function createApp(deps: AppDeps) {
     interactions: interactionsRepository,
     logger,
   });
+  const notificationsRepository = new NotificationsRepository(db);
+  const deadlinesRepository = new DeadlinesRepository(db);
+  const calendarService = new CalendarService({
+    repository: new NonWorkingDaysRepository(db),
+    // Days the lawyer adds or removes can move the due date of deadlines already saved.
+    afterChange: () => deadlinesService.recalculatePending(),
+  });
+  // Annotated: the calendar and the deadlines service refer to each other.
+  const deadlinesService: DeadlinesService = new DeadlinesService({
+    repository: deadlinesRepository,
+    calendar: calendarService,
+    clients: clientsRepository,
+    notifications: notificationsRepository,
+    logger,
+  });
+  const deadlineAnalysis = new DeadlineAnalysisService({ llm, ocr, interactions: interactionsRepository, logger });
+  const deadlineWatcher = new DeadlineWatcher({
+    deadlines: deadlinesRepository,
+    notifications: notificationsRepository,
+    logger,
+  });
+  const notificationsService = new NotificationsService({ repository: notificationsRepository, watcher: deadlineWatcher });
   const draftsService = new DraftsService({
     repository: new DraftsRepository(db),
     documents: documentsRepository,
@@ -136,11 +172,20 @@ export function createApp(deps: AppDeps) {
   );
   app.use('/api/rag', ragRouter(new RagController(ragService)));
   app.use('/api/clients', clientsRouter(new ClientsController(clientsService)));
+  app.use('/api/calendar', calendarRouter(new CalendarController(calendarService)));
+  app.use(
+    '/api/deadlines',
+    deadlinesRouter(new DeadlinesController(deadlinesService, deadlineAnalysis), {
+      tmpDir: storage.tmpDir,
+      maxUploadBytes: deps.maxUploadMb * 1024 * 1024,
+    }),
+  );
+  app.use('/api/notifications', notificationsRouter(new NotificationsController(notificationsService)));
   app.use('/api/drafts', draftsRouter(new DraftsController(draftsService)));
   app.use('/api/interactions', interactionsRouter(new InteractionsController(interactionsRepository)));
 
   app.use(notFoundHandler);
   app.use(errorHandler({ maxUploadMb: deps.maxUploadMb }));
 
-  return { app, queue, documentsService };
+  return { app, queue, documentsService, deadlineWatcher };
 }

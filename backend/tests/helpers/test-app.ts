@@ -20,7 +20,7 @@ export async function createTestApp(options: { llm?: LlmProvider | null } = {}) 
   await storage.init();
   const ocr = new FakeOcrEngine();
 
-  const { app, queue } = createApp({
+  const { app, queue, deadlineWatcher } = createApp({
     db,
     storage,
     embeddings: new FakeEmbeddingProvider(),
@@ -37,11 +37,16 @@ export async function createTestApp(options: { llm?: LlmProvider | null } = {}) 
     db,
     storage,
     ocr,
+    /** The check that warns about deadlines; tests call it with the date they want to simulate. */
+    watcher: deadlineWatcher,
     async reset() {
       await queue.idle();
       ocr.text = '';
       ocr.calls = 0;
       await db.draft.deleteMany();
+      await db.notification.deleteMany();
+      await db.deadline.deleteMany();
+      await db.nonWorkingDay.deleteMany();
       await db.client.deleteMany();
       await db.agentInteraction.deleteMany();
       await db.document.deleteMany();

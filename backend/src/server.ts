@@ -32,7 +32,7 @@ const llm = env.GEMINI_API_KEY
     })
   : null;
 
-const { app, queue, documentsService } = createApp({
+const { app, queue, documentsService, deadlineWatcher } = createApp({
   db,
   storage,
   embeddings,
@@ -58,6 +58,9 @@ ocr.warmUp().catch((error: unknown) => {
   logger.error({ err: error }, 'No se pudo cargar el OCR (¿sin conexión la primera vez?)');
 });
 
+// Warns about deadlines that are about to expire: now, and then every hour.
+const stopDeadlineWatcher = deadlineWatcher.start();
+
 documentsService
   .resumeUnfinished()
   .then((count) => {
@@ -71,6 +74,7 @@ async function shutdown(signal: string) {
   shuttingDown = true;
   logger.info({ signal }, 'Shutting down');
   server.close();
+  stopDeadlineWatcher();
   // Documents interrupted here stay PENDING/PROCESSING and are resumed on the next start.
   await Promise.race([queue.idle(), new Promise((resolve) => setTimeout(resolve, 5_000))]);
   await ocr.close();

@@ -1,11 +1,18 @@
 import type {
+  AppNotification,
   AskResult,
+  CalendarOverview,
   Client,
   ClientFields,
   ClientProposal,
   ClientSummary,
   CreateDraftInput,
+  Deadline,
+  DeadlineInput,
+  DeadlineProposal,
+  DeadlineStatus,
   DocumentCategory,
+  DueDateCalculation,
   Draft,
   DraftSummary,
   Health,
@@ -129,4 +136,47 @@ export const api = {
     request<{ proposal: ClientProposal }>('/clients/analyze-notes', { method: 'POST', body: json({ notes }) }).then(
       (r) => r.proposal,
     ),
+
+  listDeadlines: (filters: { status?: DeadlineStatus; clientId?: string } = {}) => {
+    const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value)).toString();
+    return request<{ deadlines: Deadline[] }>(`/deadlines${query ? `?${query}` : ''}`).then((r) => r.deadlines);
+  },
+
+  getDeadline: (id: string) => request<{ deadline: Deadline }>(`/deadlines/${id}`).then((r) => r.deadline),
+
+  /** The terms of one document are saved together: all of them or none. */
+  createDeadlines: (items: DeadlineInput[]) =>
+    request<{ deadlines: Deadline[] }>('/deadlines/batch', { method: 'POST', body: json({ items }) }).then(
+      (r) => r.deadlines,
+    ),
+
+  updateDeadline: (id: string, data: Partial<DeadlineInput> & { status?: DeadlineStatus }) =>
+    request<{ deadline: Deadline }>(`/deadlines/${id}`, { method: 'PATCH', body: json(data) }).then((r) => r.deadline),
+
+  deleteDeadline: (id: string) => request<void>(`/deadlines/${id}`, { method: 'DELETE' }),
+
+  calculateDueDate: (term: Pick<DeadlineInput, 'notificationDate' | 'days' | 'dayType'>) =>
+    request<DueDateCalculation>('/deadlines/calculate', { method: 'POST', body: json(term) }),
+
+  analyzeDeadlineDocument(file: File) {
+    const form = new FormData();
+    form.append('file', file);
+    return request<{ proposal: DeadlineProposal }>('/deadlines/analyze', { method: 'POST', body: form }).then(
+      (r) => r.proposal,
+    );
+  },
+
+  getCalendar: (year: number) => request<CalendarOverview>(`/calendar?year=${year}`),
+
+  addNonWorkingDay: (data: { startDate: string; endDate?: string; label: string }) =>
+    request<void>('/calendar/non-working-days', { method: 'POST', body: json(data) }),
+
+  deleteNonWorkingDay: (id: string) => request<void>(`/calendar/non-working-days/${id}`, { method: 'DELETE' }),
+
+  listNotifications: () =>
+    request<{ notifications: AppNotification[] }>('/notifications').then((r) => r.notifications),
+
+  markNotificationRead: (id: string) => request<void>(`/notifications/${id}/read`, { method: 'POST' }),
+
+  markAllNotificationsRead: () => request<void>('/notifications/read-all', { method: 'POST' }),
 };
