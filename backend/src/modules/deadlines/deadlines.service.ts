@@ -3,9 +3,10 @@ import type { Logger } from '../../lib/logger.js';
 import { computeDueDate, type DayType, type SkippedDay } from '../calendar/business-days.js';
 import type { CalendarService } from '../calendar/calendar.service.js';
 import { daysBetween, toDate, toIsoDate, todayInArgentina } from '../calendar/dates.js';
+import type { CasesRepository } from '../cases/cases.repository.js';
 import type { ClientsRepository } from '../clients/clients.repository.js';
 import type { NotificationsRepository } from '../notifications/notifications.repository.js';
-import type { DeadlineChanges, DeadlinesRepository, DeadlineWithClient } from './deadlines.repository.js';
+import type { DeadlineChanges, DeadlinesRepository, DeadlineWithRelations } from './deadlines.repository.js';
 import type {
   CalculateInput,
   CreateDeadlineInput,
@@ -17,6 +18,7 @@ interface DeadlinesServiceDeps {
   repository: DeadlinesRepository;
   calendar: CalendarService;
   clients: ClientsRepository;
+  cases: CasesRepository;
   notifications: NotificationsRepository;
   logger: Logger;
 }
@@ -24,14 +26,15 @@ interface DeadlinesServiceDeps {
 export class DeadlinesService {
   constructor(private readonly deps: DeadlinesServiceDeps) {}
 
-  async create(input: CreateDeadlineInput): Promise<DeadlineWithClient> {
+  async create(input: CreateDeadlineInput): Promise<DeadlineWithRelations> {
     const [deadline] = await this.createMany([input]);
     return deadline!;
   }
 
   /** The terms of one document, saved together: all of them or none. */
-  async createMany(inputs: CreateDeadlineInput[]): Promise<DeadlineWithClient[]> {
+  async createMany(inputs: CreateDeadlineInput[]): Promise<DeadlineWithRelations[]> {
     await this.assertClientsExist(inputs.map((input) => input.clientId));
+    await this.assertCasesExist(inputs.map((input) => input.caseId));
     const calendar = await this.deps.calendar.load();
     return this.deps.repository.createMany(
       inputs.map((input) => ({
@@ -39,6 +42,7 @@ export class DeadlinesService {
         caseReference: input.caseReference,
         notes: input.notes,
         clientId: input.clientId,
+        caseId: input.caseId,
         notificationDate: toDate(input.notificationDate),
         days: input.days,
         dayType: input.dayType,
@@ -48,18 +52,18 @@ export class DeadlinesService {
     );
   }
 
-  list(filters: ListDeadlinesFilters): Promise<DeadlineWithClient[]> {
+  list(filters: ListDeadlinesFilters): Promise<DeadlineWithRelations[]> {
     return this.deps.repository.list(filters);
   }
 
-  async get(id: string): Promise<DeadlineWithClient> {
+  async get(id: string): Promise<DeadlineWithRelations> {
     const deadline = await this.deps.repository.findById(id);
     if (!deadline) throw new NotFoundError('El plazo no existe o fue eliminado');
     return deadline;
   }
 
   /** The days that did not count for this deadline, so the lawyer can check the calculation. */
-  async explain(deadline: DeadlineWithClient): Promise<SkippedDay[]> {
+  async explain(deadline: DeadlineWithRelations): Promise<SkippedDay[]> {
     const calendar = await this.deps.calendar.load();
     return computeDueDate(
       { notificationDate: toIsoDate(deadline.notificationDate), days: deadline.days, dayType: deadline.dayType as DayType },
@@ -73,15 +77,17 @@ export class DeadlinesService {
     return { ...result, daysLeft: daysBetween(todayInArgentina(), result.dueDate) };
   }
 
-  async update(id: string, input: UpdateDeadlineInput): Promise<DeadlineWithClient> {
+  async update(id: string, input: UpdateDeadlineInput): Promise<DeadlineWithRelations> {
     const current = await this.get(id);
     if (input.clientId) await this.assertClientsExist([input.clientId]);
+    if (input.caseId) await this.assertCasesExist([input.caseId]);
 
     const changes: DeadlineChanges = {
       title: input.title,
       caseReference: input.caseReference,
       notes: input.notes,
       clientId: input.clientId,
+      caseId: input.caseId,
       sourceQuote: input.sourceQuote,
       days: input.days,
       dayType: input.dayType,
@@ -149,6 +155,14 @@ export class DeadlinesService {
     for (const id of new Set(clientIds.filter((clientId): clientId is string => clientId !== null))) {
       if (!(await this.deps.clients.findById(id))) {
         throw new BadRequestError('El cliente elegido no existe o fue eliminado.');
+      }
+    }
+  }
+
+  private async assertCasesExist(caseIds: Array<string | null>): Promise<void> {
+    for (const id of new Set(caseIds.filter((caseId): caseId is string => caseId !== null))) {
+      if (!(await this.deps.cases.findById(id))) {
+        throw new BadRequestError('El expediente elegido no existe o fue eliminado.');
       }
     }
   }

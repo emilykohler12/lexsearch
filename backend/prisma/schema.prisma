@@ -1,7 +1,7 @@
 // Modelo de datos de LexSearch.
 // Fase 1: biblioteca de documentos + fragmentos (RAG) + registro de interacciones con la IA.
 // Fase 2: borradores. Fase 3: clientes. Fase 4: plazos, días inhábiles y avisos.
-// Las próximas fases agregan Expediente y Actuación.
+// Fase 5: expedientes y actuaciones (la línea de tiempo).
 
 generator client {
   provider            = "prisma-client"
@@ -54,6 +54,8 @@ model Document {
   chunks         DocumentChunk[]
   /// Borradores que usaron este documento como modelo base.
   drafts         Draft[]
+  /// Actuaciones de expedientes que tienen este documento como respaldo.
+  proceedings    Proceeding[]
 
   @@index([category])
   @@index([status])
@@ -170,6 +172,7 @@ model Client {
   updatedAt            DateTime @updatedAt @map("updated_at")
   drafts               Draft[]
   deadlines            Deadline[]
+  cases                CaseClient[]
 
   @@index([fullName])
   @@map("clients")
@@ -179,10 +182,12 @@ model Client {
 model Deadline {
   id               String         @id @default(uuid()) @db.Uuid
   title            String
-  /// Carátula, número de expediente y juzgado, en texto libre (la Fase 5 lo reemplaza por el expediente).
+  /// Carátula, número de expediente y juzgado, en texto libre: lo que dice la cédula. El vínculo con el expediente es caseId.
   caseReference    String         @default("") @map("case_reference")
   notes            String         @default("")
   clientId         String?        @map("client_id") @db.Uuid
+  /// Expediente al que pertenece. Si se borra el expediente, el plazo se conserva sin vínculo.
+  caseId           String?        @map("case_id") @db.Uuid
   /// Fecha de la notificación: el cómputo empieza al día siguiente.
   notificationDate DateTime       @map("notification_date") @db.Date
   days             Int
@@ -198,10 +203,12 @@ model Deadline {
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
   client           Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  case             Case?          @relation(fields: [caseId], references: [id], onDelete: SetNull)
   notifications    Notification[]
 
   @@index([status, dueDate])
   @@index([clientId])
+  @@index([caseId])
   @@map("deadlines")
 }
 
@@ -234,4 +241,69 @@ model Notification {
   @@unique([deadlineId, kind])
   @@index([readAt, createdAt])
   @@map("notifications")
+}
+
+/// Expediente (Fase 5): el caso que el abogado lleva para uno o más clientes.
+model Case {
+  id           String       @id @default(uuid()) @db.Uuid
+  /// Carátula: «Pérez, Juan c/ Gómez, Ana s/ daños y perjuicios».
+  title        String
+  /// Número de expediente tal como lo escribe el abogado (45678/2026).
+  number       String       @default("")
+  /// Juzgado o tribunal.
+  court        String       @default("")
+  /// Área de práctica (LABORAL, CIVIL...; ver clients.schemas.ts). Nula hasta definirla.
+  practiceArea String?      @map("practice_area")
+  /// ACTIVE (en trámite), PAUSED (paralizado) o CLOSED (terminado o archivado).
+  status       String       @default("ACTIVE")
+  notes        String       @default("")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  clients      CaseClient[]
+  proceedings  Proceeding[]
+  deadlines    Deadline[]
+
+  @@index([status, updatedAt])
+  @@map("cases")
+}
+
+/// Un expediente puede tener varios clientes y un cliente varios expedientes.
+/// Si se borra cualquiera de los dos, solo se pierde el vínculo.
+model CaseClient {
+  caseId   String @map("case_id") @db.Uuid
+  clientId String @map("client_id") @db.Uuid
+  case     Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([caseId, clientId])
+  @@index([clientId])
+  @@map("case_clients")
+}
+
+/// Actuación (Fase 5): cada hecho con fecha dentro de un expediente (un escrito, una resolución,
+/// una notificación, una audiencia...). Alimenta la línea de tiempo.
+model Proceeding {
+  id          String    @id @default(uuid()) @db.Uuid
+  caseId      String    @map("case_id") @db.Uuid
+  date        DateTime  @db.Date
+  /// ESCRITO, RESOLUCION, NOTIFICACION, AUDIENCIA, PRUEBA u OTRO (ver cases.schemas.ts).
+  kind        String
+  title       String
+  description String    @default("")
+  /// Orden entre las actuaciones de un mismo día: el de aparición en el texto cuando vienen de una lectura con IA.
+  position    Int       @default(0)
+  /// MANUAL (la cargó el abogado) o AI (la propuso la IA al leer un texto y el abogado la confirmó).
+  source      String    @default("MANUAL")
+  /// Frase del texto leído que respalda la actuación (solo cuando la propuso la IA).
+  sourceQuote String    @default("") @map("source_quote")
+  /// Documento de la biblioteca que corresponde a la actuación (el escrito, la resolución).
+  documentId  String?   @map("document_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  case        Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  document    Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([caseId, date])
+  @@index([documentId])
+  @@map("proceedings")
 }

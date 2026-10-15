@@ -32,6 +32,7 @@ describe('createDeadlineSchema', () => {
       caseReference: '',
       notes: '',
       clientId: null,
+      caseId: null,
       sourceQuote: '',
     });
   });
@@ -43,6 +44,7 @@ describe('updateDeadlineSchema', () => {
     expect(updateDeadlineSchema.parse({ notes: 'Llamar al cliente' })).toEqual({ notes: 'Llamar al cliente' });
     expect(updateDeadlineSchema.parse({ status: 'DONE' })).toEqual({ status: 'DONE' });
     expect(updateDeadlineSchema.parse({ clientId: null })).toEqual({ clientId: null });
+    expect(updateDeadlineSchema.parse({ caseId: null })).toEqual({ caseId: null });
   });
 
   it('needs at least one field and validates what it gets', () => {

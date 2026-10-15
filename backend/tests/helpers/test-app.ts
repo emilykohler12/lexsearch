@@ -46,6 +46,7 @@ export async function createTestApp(options: { llm?: LlmProvider | null } = {}) 
       await db.draft.deleteMany();
       await db.notification.deleteMany();
       await db.deadline.deleteMany();
+      await db.case.deleteMany(); // its actuaciones and client links go with it
       await db.nonWorkingDay.deleteMany();
       await db.client.deleteMany();
       await db.agentInteraction.deleteMany();

@@ -1,4 +1,13 @@
-import type { DayType, DocumentCategory, DocumentStatus, DraftType, PersonType, PracticeArea } from '../api/types';
+import type {
+  CaseStatus,
+  DayType,
+  DocumentCategory,
+  DocumentStatus,
+  DraftType,
+  PersonType,
+  PracticeArea,
+  ProceedingKind,
+} from '../api/types';
 
 export const CATEGORY_LABELS: Record<DocumentCategory, string> = {
   LEGISLACION: 'Legislación',
@@ -128,4 +137,66 @@ export function whenText(daysLeft: number): string {
   if (daysLeft === 0) return 'Vence hoy';
   if (daysLeft === 1) return 'Vence mañana';
   return `Vence en ${daysLeft} días`;
+}
+
+export const CASE_STATUS_LABELS: Record<CaseStatus, string> = {
+  ACTIVE: 'En trámite',
+  PAUSED: 'Paralizado',
+  CLOSED: 'Archivado',
+};
+
+export const CASE_STATUSES = Object.keys(CASE_STATUS_LABELS) as CaseStatus[];
+
+export const PROCEEDING_KIND_LABELS: Record<ProceedingKind, string> = {
+  ESCRITO: 'Escrito',
+  RESOLUCION: 'Resolución',
+  NOTIFICACION: 'Notificación',
+  AUDIENCIA: 'Audiencia',
+  PRUEBA: 'Prueba',
+  OTRO: 'Otro',
+};
+
+export const PROCEEDING_KINDS = Object.keys(PROCEEDING_KIND_LABELS) as ProceedingKind[];
+
+const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+/** "12 de marzo de 2025" from AAAA-MM-DD, read as plain text. */
+export function formatLongDay(iso: string): string {
+  const [year = '', month = '', day = ''] = iso.split('-');
+  return `${Number(day)} de ${MONTHS[Number(month) - 1] ?? ''} de ${year}`;
+}
+
+/** "marzo de 2025" from AAAA-MM-DD (or AAAA-MM). */
+export function formatMonth(iso: string): string {
+  const [year = '', month = ''] = iso.split('-');
+  return `${MONTHS[Number(month) - 1] ?? ''} de ${year}`;
+}
+
+/** Whole days from one AAAA-MM-DD date to another (negative when `to` is earlier). */
+export function daysBetween(from: string, to: string): number {
+  const parse = (iso: string) => {
+    const [year = 0, month = 1, day = 1] = iso.split('-').map(Number);
+    return Date.UTC(year, month - 1, day);
+  };
+  return Math.round((parse(to) - parse(from)) / 86_400_000);
+}
+
+/** "hoy", "ayer", "hace 12 días", "hace 3 meses", "hace 2 años". */
+export function agoText(days: number): string {
+  if (days <= 0) return 'hoy';
+  if (days === 1) return 'ayer';
+  if (days < 30) return `hace ${days} días`;
+  if (days < 365) {
+    const months = Math.floor(days / 30.4);
+    return `hace ${months === 1 ? '1 mes' : `${months} meses`}`;
+  }
+  const years = Math.floor(days / 365);
+  return `hace ${years === 1 ? '1 año' : `${years} años`}`;
+}
+
+/** The length of a stretch without movement: "45 días", "3 meses", "2 años". */
+export function gapText(days: number): string {
+  if (days < 60) return `${days} días`;
+  if (days < 730) return `${Math.round(days / 30.4)} meses`;
+  return `${Math.round(days / 365)} años`;
 }

@@ -13,6 +13,11 @@ import { CalendarController } from './modules/calendar/calendar.controller.js';
 import { calendarRouter } from './modules/calendar/calendar.routes.js';
 import { CalendarService } from './modules/calendar/calendar.service.js';
 import { NonWorkingDaysRepository } from './modules/calendar/non-working-days.repository.js';
+import { CasesController } from './modules/cases/cases.controller.js';
+import { CasesRepository } from './modules/cases/cases.repository.js';
+import { casesRouter } from './modules/cases/cases.routes.js';
+import { CasesService } from './modules/cases/cases.service.js';
+import { ProceedingAnalysisService } from './modules/cases/proceeding-analysis.service.js';
 import { ClientsController } from './modules/clients/clients.controller.js';
 import { ClientsRepository } from './modules/clients/clients.repository.js';
 import { clientsRouter } from './modules/clients/clients.routes.js';
@@ -87,6 +92,7 @@ export function createApp(deps: AppDeps) {
     interactions: interactionsRepository,
     logger,
   });
+  const casesRepository = new CasesRepository(db);
   const notificationsRepository = new NotificationsRepository(db);
   const deadlinesRepository = new DeadlinesRepository(db);
   const calendarService = new CalendarService({
@@ -99,7 +105,21 @@ export function createApp(deps: AppDeps) {
     repository: deadlinesRepository,
     calendar: calendarService,
     clients: clientsRepository,
+    cases: casesRepository,
     notifications: notificationsRepository,
+    logger,
+  });
+  const casesService = new CasesService({
+    repository: casesRepository,
+    clients: clientsRepository,
+    documents: documentsRepository,
+    deadlines: deadlinesRepository,
+  });
+  const proceedingAnalysis = new ProceedingAnalysisService({
+    cases: casesRepository,
+    llm,
+    ocr,
+    interactions: interactionsRepository,
     logger,
   });
   const deadlineAnalysis = new DeadlineAnalysisService({ llm, ocr, interactions: interactionsRepository, logger });
@@ -176,6 +196,13 @@ export function createApp(deps: AppDeps) {
   app.use(
     '/api/deadlines',
     deadlinesRouter(new DeadlinesController(deadlinesService, deadlineAnalysis), {
+      tmpDir: storage.tmpDir,
+      maxUploadBytes: deps.maxUploadMb * 1024 * 1024,
+    }),
+  );
+  app.use(
+    '/api/cases',
+    casesRouter(new CasesController(casesService, proceedingAnalysis), {
       tmpDir: storage.tmpDir,
       maxUploadBytes: deps.maxUploadMb * 1024 * 1024,
     }),

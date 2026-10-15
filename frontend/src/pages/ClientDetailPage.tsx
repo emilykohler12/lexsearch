@@ -1,8 +1,9 @@
-import { CalendarClock, ChevronRight, FilePenLine, Sparkles, Trash2 } from 'lucide-react';
+import { CalendarClock, ChevronRight, FilePenLine, FolderKanban, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import {
   useAnalyzeNotes,
+  useCases,
   useClient,
   useClientDrafts,
   useCreateClient,
@@ -29,6 +30,7 @@ import { SelectField, TextAreaField, TextField } from '../components/fields';
 import { useSaveShortcut } from '../hooks/useSaveShortcut';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import {
+  CASE_STATUS_LABELS,
   DRAFT_TYPE_LABELS,
   formatDate,
   formatDay,
@@ -408,6 +410,10 @@ function ClientEditor({ client }: { client: Client | null }) {
                 <FilePenLine className="size-4" aria-hidden />
                 Redactar borrador
               </Link>
+              <Link to={`/expedientes/nuevo?cliente=${client.id}`} className="btn-secondary min-h-11 sm:min-h-0">
+                <FolderKanban className="size-4" aria-hidden />
+                Nuevo expediente
+              </Link>
               <Link to={`/plazos/nuevo?cliente=${client.id}`} className="btn-secondary min-h-11 sm:min-h-0">
                 <CalendarClock className="size-4" aria-hidden />
                 Nuevo plazo
@@ -435,6 +441,7 @@ function ClientEditor({ client }: { client: Client | null }) {
         </div>
       </div>
 
+      {client && <ClientCases clientId={client.id} />}
       {client && <ClientDeadlines clientId={client.id} />}
       {client && <ClientDrafts clientId={client.id} />}
 
@@ -466,6 +473,35 @@ function ClientEditor({ client }: { client: Client | null }) {
         </Dialog>
       )}
     </form>
+  );
+}
+
+/** Expedientes of this client (only shown when there are any). */
+function ClientCases({ clientId }: { clientId: string }) {
+  const { data: cases } = useCases({ clientId });
+  if (!cases || cases.length === 0) return null;
+
+  return (
+    <section aria-labelledby="client-cases-title" className="space-y-3">
+      <h2 id="client-cases-title" className="text-lg">
+        Expedientes
+      </h2>
+      <ul className="card divide-y divide-line">
+        {cases.map((found) => (
+          <li key={found.id}>
+            <Link to={`/expedientes/${found.id}`} className="flex items-center gap-4 px-4 py-4 hover:bg-paper/70 sm:px-5">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium break-words">{found.title}</p>
+                <p className="mt-0.5 text-xs break-words text-muted">
+                  {[found.number, found.court, CASE_STATUS_LABELS[found.status]].filter(Boolean).join(' · ')}
+                </p>
+              </div>
+              <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

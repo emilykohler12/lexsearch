@@ -1,9 +1,8 @@
-import { readFile, rm } from 'node:fs/promises';
-import { BadRequestError, ServiceUnavailableError } from '../../lib/errors.js';
+import { rm } from 'node:fs/promises';
+import { ServiceUnavailableError } from '../../lib/errors.js';
 import type { Logger } from '../../lib/logger.js';
-import { assertContentMatches, detectFileType, UnsupportedFileError } from '../documents/file-types.js';
-import { ExtractionError, extractText } from '../documents/ingestion/text-extraction.js';
 import type { IncomingFile } from '../documents/documents.service.js';
+import { readUploadedText } from '../documents/uploaded-text.js';
 import type { InteractionsRepository } from '../interactions/interactions.repository.js';
 import type { LlmProvider } from '../llm/llm-provider.js';
 import { loadPrompt, PROMPT_VERSIONS } from '../llm/prompts.js';
@@ -44,7 +43,7 @@ export class DeadlineAnalysisService {
         );
       }
 
-      const { text, ocrPageCount } = await this.readText(file);
+      const { text, ocrPageCount } = await readUploadedText(file, this.deps.ocr);
       const prompt = loadPrompt(PROMPT_VERSIONS.deadlineExtraction);
       const input = { fileName: file.originalName, textChars: text.length, ocrPageCount, text: text.slice(0, MAX_LOGGED_TEXT_CHARS) };
       const startedAt = Date.now();
@@ -87,20 +86,6 @@ export class DeadlineAnalysisService {
       }
     } finally {
       await rm(file.tempPath, { force: true });
-    }
-  }
-
-  private async readText(file: IncomingFile): Promise<{ text: string; ocrPageCount: number }> {
-    try {
-      const type = detectFileType(file.originalName);
-      const data = await readFile(file.tempPath);
-      assertContentMatches(type.kind, data, file.originalName);
-      const { pages, ocrPageCount } = await extractText(type.kind, data, this.deps.ocr);
-      return { text: pages.map((page) => page.text).join('\n\n'), ocrPageCount };
-    } catch (error) {
-      // Problems with the file itself are the lawyer's to fix: say so as a 400.
-      if (error instanceof UnsupportedFileError || error instanceof ExtractionError) throw new BadRequestError(error.message);
-      throw error;
     }
   }
 }

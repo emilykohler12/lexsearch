@@ -216,12 +216,20 @@ export type DeadlineStatus = 'PENDING' | 'DONE';
 /** DONE: fulfilled; the others describe a pending deadline by how close its due date is. */
 export type DeadlineState = 'DONE' | 'OVERDUE' | 'TODAY' | 'SOON' | 'ONGOING';
 
+/** Enough of an expediente to name it and link to it. */
+export interface CaseRef {
+  id: string;
+  title: string;
+  number: string;
+}
+
 export interface Deadline {
   id: string;
   title: string;
   caseReference: string;
   notes: string;
   client: ClientRef | null;
+  case: CaseRef | null;
   /** AAAA-MM-DD: the term starts the day after. */
   notificationDate: string;
   days: number;
@@ -245,6 +253,7 @@ export interface DeadlineInput {
   caseReference: string;
   notes: string;
   clientId: string | null;
+  caseId: string | null;
   notificationDate: string;
   days: number;
   dayType: DayType;
@@ -306,6 +315,110 @@ export interface AppNotification {
   title: string;
   message: string;
   createdAt: string;
+}
+
+export type CaseStatus = 'ACTIVE' | 'PAUSED' | 'CLOSED';
+export type ProceedingKind = 'ESCRITO' | 'RESOLUCION' | 'NOTIFICACION' | 'AUDIENCIA' | 'PRUEBA' | 'OTRO';
+
+export interface CaseSummary {
+  id: string;
+  title: string;
+  number: string;
+  court: string;
+  practiceArea: PracticeArea | null;
+  status: CaseStatus;
+  clients: ClientRef[];
+  proceedingCount: number;
+  /** AAAA-MM-DD of the latest actuación; null while there are none. */
+  lastProceedingDate: string | null;
+  pendingDeadlines: number;
+  nextDeadline: { id: string; title: string; dueDate: string; daysLeft: number; state: DeadlineState } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Case extends CaseSummary {
+  notes: string;
+}
+
+/** The part of an expediente the lawyer edits (what the API saves). */
+export interface CaseInput {
+  title: string;
+  number: string;
+  court: string;
+  practiceArea: PracticeArea | null;
+  status: CaseStatus;
+  notes: string;
+  clientIds: string[];
+}
+
+/** An actuación as the lawyer enters it (or confirms it after the AI read it). */
+export interface ProceedingInput {
+  date: string;
+  kind: ProceedingKind;
+  title: string;
+  description: string;
+  documentId: string | null;
+  sourceQuote: string;
+  source: 'MANUAL' | 'AI';
+}
+
+export type ProceedingTimelineItem = {
+  type: 'PROCEEDING';
+  id: string;
+  date: string;
+  kind: ProceedingKind;
+  title: string;
+  description: string;
+  source: 'MANUAL' | 'AI';
+  sourceQuote: string;
+  document: { id: string; title: string } | null;
+};
+
+export type DeadlineTimelineItem = {
+  type: 'DEADLINE';
+  id: string;
+  /** The due date. */
+  date: string;
+  title: string;
+  status: DeadlineStatus;
+  state: DeadlineState;
+  daysLeft: number;
+  notificationDate: string;
+  days: number;
+  dayType: DayType;
+};
+
+/** Something that happened in the expediente, or the day one of its deadlines ends. */
+export type TimelineItem = ProceedingTimelineItem | DeadlineTimelineItem;
+
+export interface CaseTimeline {
+  /** Today's date in Argentina (AAAA-MM-DD). */
+  today: string;
+  case: Case;
+  items: TimelineItem[];
+}
+
+/** An actuación found in a text; nothing is saved until the lawyer confirms it. */
+export interface ProceedingProposal {
+  date: string;
+  kind: ProceedingKind;
+  title: string;
+  description: string;
+  quote: string;
+  /** False when the AI's quote isn't in the text: check the actuación by hand. */
+  quoteVerified: boolean;
+  /** The expediente already has an actuación that day with the same title. */
+  duplicate: boolean;
+}
+
+export interface TimelineProposal {
+  caseInfo: { title: string; number: string; court: string };
+  proceedings: ProceedingProposal[];
+  /** Actuaciones the text mentions without a usable date: left out. */
+  withoutDate: number;
+  /** The text was too long: the middle part wasn't read. */
+  textTruncated: boolean;
 }
 
 /** What the AI proposes from the notes of the first meeting; nothing is saved until the lawyer says so. */

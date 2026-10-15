@@ -12,6 +12,7 @@ export const PROMPT_VERSIONS = {
   draftGenerator: 'draft-generator.v2',
   clientIntake: 'client-intake.v1',
   deadlineExtraction: 'deadline-extraction.v1',
+  proceedingExtraction: 'proceeding-extraction.v1',
 } as const;
 
 export interface Prompt {

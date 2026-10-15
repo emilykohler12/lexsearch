@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { isoDateSchema } from '../calendar/calendar.schemas.js';
 import type { DayType } from '../calendar/business-days.js';
 import { daysBetween, toIsoDate, type IsoDate } from '../calendar/dates.js';
-import type { DeadlineWithClient } from './deadlines.repository.js';
+import type { DeadlineWithRelations } from './deadlines.repository.js';
 
 export const DAY_TYPES = {
   BUSINESS: 'Hábiles',
@@ -33,6 +33,7 @@ const deadlineFields = {
   caseReference: text(300),
   notes: text(4_000),
   clientId: z.uuid().nullable(),
+  caseId: z.uuid().nullable(),
   sourceQuote: text(1_000),
 };
 
@@ -44,6 +45,7 @@ export const createDeadlineSchema = z.object({
   caseReference: deadlineFields.caseReference.default(''),
   notes: deadlineFields.notes.default(''),
   clientId: deadlineFields.clientId.default(null),
+  caseId: deadlineFields.caseId.default(null),
   sourceQuote: deadlineFields.sourceQuote.default(''),
 });
 
@@ -62,6 +64,7 @@ export const updateDeadlineSchema = z
 export const listDeadlinesQuerySchema = z.object({
   status: z.enum(['PENDING', 'DONE']).optional(),
   clientId: z.uuid().optional(),
+  caseId: z.uuid().optional(),
 });
 
 export type CalculateInput = z.infer<typeof calculateSchema>;
@@ -80,7 +83,7 @@ export function deadlineState(status: string, daysLeft: number): DeadlineState {
 }
 
 /** `today` is Argentina's date: "overdue" depends on it, not on the server's clock. */
-export function toDeadlineDto(deadline: DeadlineWithClient, today: IsoDate) {
+export function toDeadlineDto(deadline: DeadlineWithRelations, today: IsoDate) {
   const dueDate = toIsoDate(deadline.dueDate);
   const daysLeft = daysBetween(today, dueDate);
   return {
@@ -89,6 +92,7 @@ export function toDeadlineDto(deadline: DeadlineWithClient, today: IsoDate) {
     caseReference: deadline.caseReference,
     notes: deadline.notes,
     client: deadline.client,
+    case: deadline.case,
     notificationDate: toIsoDate(deadline.notificationDate),
     days: deadline.days,
     dayType: deadline.dayType as DayType,

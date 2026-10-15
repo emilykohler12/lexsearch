@@ -120,7 +120,7 @@ export function PlazosPage() {
 
 function DeadlineRow({ deadline, busy, onToggle }: { deadline: Deadline; busy: boolean; onToggle: () => void }) {
   const done = deadline.status === 'DONE';
-  const details = [deadline.caseReference, deadline.client?.fullName].filter(Boolean).join(' · ');
+  const details = [deadline.case?.title ?? deadline.caseReference, deadline.client?.fullName].filter(Boolean).join(' · ');
 
   return (
     <li className="flex items-stretch">

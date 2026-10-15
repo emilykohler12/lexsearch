@@ -23,12 +23,14 @@ export interface DeadlineForm {
   caseReference: string;
   /** "" = no client. */
   clientId: string;
+  /** "" = no expediente. */
+  caseId: string;
   notes: string;
   terms: TermRow[];
 }
 
 /** Which of the shared fields the AI filled in. */
-export type SharedField = 'notificationDate' | 'caseReference';
+export type SharedField = 'notificationDate' | 'caseReference' | 'caseId';
 
 let termCounter = 0;
 const newKey = () => `term-${++termCounter}`;
@@ -37,8 +39,8 @@ export function emptyTerm(): TermRow {
   return { key: newKey(), title: '', days: '', dayType: 'BUSINESS', quote: '', quoteVerified: null, daysMissing: false, suggested: false };
 }
 
-export function emptyForm(clientId = ''): DeadlineForm {
-  return { notificationDate: '', caseReference: '', clientId, notes: '', terms: [emptyTerm()] };
+export function emptyForm(clientId = '', caseId = ''): DeadlineForm {
+  return { notificationDate: '', caseReference: '', clientId, caseId, notes: '', terms: [emptyTerm()] };
 }
 
 export function formFromDeadline(deadline: Deadline): DeadlineForm {
@@ -46,6 +48,7 @@ export function formFromDeadline(deadline: Deadline): DeadlineForm {
     notificationDate: deadline.notificationDate,
     caseReference: deadline.caseReference,
     clientId: deadline.client?.id ?? '',
+    caseId: deadline.case?.id ?? '',
     notes: deadline.notes,
     terms: [
       {
@@ -87,6 +90,7 @@ export function toInputs(form: DeadlineForm): DeadlineInput[] {
     caseReference: form.caseReference.trim(),
     notes: form.notes.trim(),
     clientId: form.clientId || null,
+    caseId: form.caseId || null,
     notificationDate: form.notificationDate,
     days: parseDays(row.days) ?? 0,
     dayType: row.dayType,
@@ -110,6 +114,7 @@ export function changesFrom(deadline: Deadline, form: DeadlineForm): Partial<Dea
   if (form.caseReference.trim() !== deadline.caseReference) changes.caseReference = form.caseReference.trim();
   if (form.notes.trim() !== deadline.notes) changes.notes = form.notes.trim();
   if (form.clientId !== (deadline.client?.id ?? '')) changes.clientId = form.clientId || null;
+  if (form.caseId !== (deadline.case?.id ?? '')) changes.caseId = form.caseId || null;
 
   return Object.keys(changes).length > 0 ? changes : null;
 }

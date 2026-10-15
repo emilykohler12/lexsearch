@@ -1,11 +1,12 @@
 import { CircleCheck, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
-import { useClients, useCreateDeadlines, useDeadline, useDeleteDeadline, useUpdateDeadline } from '../api/hooks';
+import { useCases, useClients, useCreateDeadlines, useDeadline, useDeleteDeadline, useUpdateDeadline } from '../api/hooks';
 import type { Deadline, DeadlineProposal, DeadlineStatus } from '../api/types';
 import { SelectField, TextAreaField, TextField } from '../components/fields';
 import { UnsavedChangesDialog } from '../components/UnsavedChangesDialog';
 import { Alert, Dialog, Spinner } from '../components/ui';
+import { findCaseByReference } from '../features/cases/case-match';
 import {
   applyProposal,
   changesFrom,
@@ -62,8 +63,8 @@ function DeadlineEditor({ deadline }: { deadline: Deadline | null }) {
   const formElement = useRef<HTMLFormElement>(null);
   // Set when the page is left on purpose (after saving or deleting), so the warning stays quiet.
   const leaving = useRef(false);
-  // "Nuevo plazo" in a client's file arrives here with the client already chosen.
-  const [initial] = useState(() => emptyForm(searchParams.get('cliente') ?? ''));
+  // "Nuevo plazo" in a client's file or in an expediente arrives here with them already chosen.
+  const [initial] = useState(() => emptyForm(searchParams.get('cliente') ?? '', searchParams.get('expediente') ?? ''));
   const [form, setForm] = useState<DeadlineForm>(() => (deadline ? formFromDeadline(deadline) : initial));
   // What the AI filled in stands out until the lawyer edits it.
   const [suggested, setSuggested] = useState<ReadonlySet<SharedField>>(() => new Set());
@@ -73,6 +74,7 @@ function DeadlineEditor({ deadline }: { deadline: Deadline | null }) {
   const update = useUpdateDeadline();
   const remove = useDeleteDeadline();
   const { data: clients } = useClients();
+  const { data: cases } = useCases();
 
   const changes = deadline ? changesFrom(deadline, form) : null;
   const dirty = deadline ? changes !== null : hasEntries(form, initial);
@@ -82,6 +84,8 @@ function DeadlineEditor({ deadline }: { deadline: Deadline | null }) {
   const sortedClients = [...(clients ?? [])].sort((a, b) => a.fullName.localeCompare(b.fullName, 'es'));
   // A client that was deleted (or a stale link) must not be sent.
   const clientId = sortedClients.some((c) => c.id === form.clientId) ? form.clientId : '';
+  const sortedCases = [...(cases ?? [])].sort((a, b) => a.title.localeCompare(b.title, 'es'));
+  const caseId = sortedCases.some((c) => c.id === form.caseId) ? form.caseId : '';
 
   /** Saves the pending changes (and the new status, if given); false when it could not. */
   const save = async ({ redirect = true, status }: { redirect?: boolean; status?: DeadlineStatus } = {}): Promise<boolean> => {
@@ -93,7 +97,7 @@ function DeadlineEditor({ deadline }: { deadline: Deadline | null }) {
       if (deadline) {
         await update.mutateAsync({ id: deadline.id, ...changes, ...(status && { status }) });
       } else {
-        await create.mutateAsync(toInputs({ ...form, clientId }));
+        await create.mutateAsync(toInputs({ ...form, clientId, caseId }));
         if (redirect) {
           leaving.current = true;
           navigate('/plazos');
@@ -114,7 +118,7 @@ function DeadlineEditor({ deadline }: { deadline: Deadline | null }) {
     leaving,
   });
 
-  const setShared = (changes: Partial<Pick<DeadlineForm, 'notificationDate' | 'caseReference' | 'clientId' | 'notes'>>) => {
+  const setShared = (changes: Partial<Pick<DeadlineForm, 'notificationDate' | 'caseReference' | 'clientId' | 'caseId' | 'notes'>>) => {
     setForm((current) => ({ ...current, ...changes }));
     setSuggested((current) => {
       const edited = (Object.keys(changes) as SharedField[]).filter((key) => current.has(key));
@@ -133,8 +137,15 @@ function DeadlineEditor({ deadline }: { deadline: Deadline | null }) {
 
   const onAnalyzed = (proposal: DeadlineProposal) => {
     const applied = applyProposal(form, proposal);
+    const filled = [...applied.filled];
+    // If the cédula names an expediente the lawyer already has (by its number), it is chosen.
+    const known = applied.form.caseId === '' ? findCaseByReference(sortedCases, proposal.caseReference) : null;
+    if (known) {
+      applied.form.caseId = known.id;
+      filled.push('caseId');
+    }
     setForm(applied.form);
-    setSuggested((current) => new Set([...current, ...applied.filled]));
+    setSuggested((current) => new Set([...current, ...filled]));
   };
 
   const deleteDeadline = () => {
@@ -177,6 +188,11 @@ function DeadlineEditor({ deadline }: { deadline: Deadline | null }) {
                 {deadline.client.fullName}
               </Link>
             )}
+            {deadline.case && (
+              <Link to={`/expedientes/${deadline.case.id}`} className="underline hover:text-ink">
+                {deadline.case.title}
+              </Link>
+            )}
           </p>
         )}
       </header>
@@ -208,14 +224,19 @@ function DeadlineEditor({ deadline }: { deadline: Deadline | null }) {
               Poner la fecha de hoy
             </button>
           </div>
-          <TextField
-            label="Carátula o expediente"
-            className="md:col-span-1 xl:col-span-2"
-            value={form.caseReference}
-            maxLength={300}
-            suggested={suggested.has('caseReference')}
-            onChange={(e) => setShared({ caseReference: e.target.value })}
-          />
+          <SelectField
+            label="Expediente (opcional)"
+            value={caseId}
+            suggested={suggested.has('caseId')}
+            onChange={(e) => setShared({ caseId: e.target.value })}
+          >
+            <option value="">Sin expediente</option>
+            {sortedCases.map((found) => (
+              <option key={found.id} value={found.id}>
+                {found.number ? `${found.title} · ${found.number}` : found.title}
+              </option>
+            ))}
+          </SelectField>
           <SelectField label="Cliente (opcional)" value={clientId} onChange={(e) => setShared({ clientId: e.target.value })}>
             <option value="">Sin cliente</option>
             {sortedClients.map((client) => (
@@ -224,6 +245,13 @@ function DeadlineEditor({ deadline }: { deadline: Deadline | null }) {
               </option>
             ))}
           </SelectField>
+          <TextField
+            label="Carátula o referencia"
+            value={form.caseReference}
+            maxLength={300}
+            suggested={suggested.has('caseReference')}
+            onChange={(e) => setShared({ caseReference: e.target.value })}
+          />
           <TextAreaField
             label="Notas"
             className="md:col-span-2 xl:col-span-4"

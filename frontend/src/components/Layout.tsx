@@ -13,18 +13,24 @@ import {
 import { NavLink, Outlet } from 'react-router';
 import { useHealth, useNotifications } from '../api/hooks';
 
-const NAV: Array<{ to: string; label: string; icon: LucideIcon; end?: boolean; alerts?: boolean }> = [
+interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  end?: boolean;
+  alerts?: boolean;
+  /** On phones these go in the top bar as icons, to leave room for the names of the others. */
+  secondary?: boolean;
+}
+
+const NAV: NavItem[] = [
   { to: '/', label: 'Consultar', icon: MessageSquareText, end: true },
   { to: '/clientes', label: 'Clientes', icon: Users },
+  { to: '/expedientes', label: 'Expedientes', icon: FolderKanban },
   { to: '/plazos', label: 'Plazos', icon: CalendarClock, alerts: true },
   { to: '/borradores', label: 'Borradores', icon: FilePenLine },
-  { to: '/biblioteca', label: 'Biblioteca', icon: BookOpen },
-  { to: '/historial', label: 'Historial', icon: History },
-];
-
-// Roadmap modules, shown so the lawyer knows what's coming.
-const UPCOMING: Array<{ label: string; icon: LucideIcon; phase: number }> = [
-  { label: 'Expedientes', icon: FolderKanban, phase: 5 },
+  { to: '/biblioteca', label: 'Biblioteca', icon: BookOpen, secondary: true },
+  { to: '/historial', label: 'Historial', icon: History, secondary: true },
 ];
 
 export function Layout() {
@@ -99,17 +105,6 @@ function DesktopSidebar() {
         ))}
       </nav>
 
-      <div className="px-3">
-        <p className="px-3 pt-4 pb-2 text-[11px] font-semibold tracking-wider text-white/40 uppercase">Próximamente</p>
-        {UPCOMING.map(({ label, icon: Icon, phase }) => (
-          <div key={label} className="flex items-center gap-3 px-3 py-1.5 text-sm text-white/35" aria-disabled>
-            <Icon className="size-4" aria-hidden />
-            <span className="flex-1">{label}</span>
-            <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px]">Fase {phase}</span>
-          </div>
-        ))}
-      </div>
-
       <div className="mt-auto px-3 pb-4">
         <SystemProblems className="rounded-lg px-3 py-2.5" />
       </div>
@@ -121,12 +116,29 @@ function MobileHeader() {
   const warnings = useUnreadWarnings();
   return (
     <header className="sticky top-0 z-20 bg-navy-900 text-white/85 shadow-sm md:hidden">
-      <div className="px-4 py-3">
+      <div className="flex items-center justify-between gap-3 px-4 py-3">
         <Brand />
+        <nav aria-label="Secundario" className="flex items-center gap-1">
+          {NAV.filter((item) => item.secondary).map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              title={label}
+              aria-label={label}
+              className={({ isActive }) =>
+                `grid size-10 place-items-center rounded-lg transition-colors ${
+                  isActive ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/5 hover:text-white'
+                }`
+              }
+            >
+              <Icon className="size-5" aria-hidden />
+            </NavLink>
+          ))}
+        </nav>
       </div>
 
-      <nav aria-label="Principal" className="grid grid-cols-6 border-t border-white/10">
-        {NAV.map(({ to, label, icon: Icon, end, alerts }) => (
+      <nav aria-label="Principal" className="grid grid-cols-5 border-t border-white/10">
+        {NAV.filter((item) => !item.secondary).map(({ to, label, icon: Icon, end, alerts }) => (
           <NavLink
             key={to}
             to={to}

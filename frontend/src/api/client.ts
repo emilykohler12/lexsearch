@@ -2,6 +2,11 @@ import type {
   AppNotification,
   AskResult,
   CalendarOverview,
+  Case,
+  CaseInput,
+  CaseStatus,
+  CaseSummary,
+  CaseTimeline,
   Client,
   ClientFields,
   ClientProposal,
@@ -19,8 +24,10 @@ import type {
   InteractionDetail,
   InteractionSummary,
   LibraryDocument,
+  ProceedingInput,
   SearchFilters,
   SearchHit,
+  TimelineProposal,
   UploadResult,
 } from './types';
 
@@ -136,6 +143,47 @@ export const api = {
     request<{ proposal: ClientProposal }>('/clients/analyze-notes', { method: 'POST', body: json({ notes }) }).then(
       (r) => r.proposal,
     ),
+
+  listCases: (filters: { status?: CaseStatus; clientId?: string } = {}) => {
+    const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value)).toString();
+    return request<{ cases: CaseSummary[] }>(`/cases${query ? `?${query}` : ''}`).then((r) => r.cases);
+  },
+
+  getCase: (id: string) => request<{ case: Case }>(`/cases/${id}`).then((r) => r.case),
+
+  createCase: (data: CaseInput) => request<{ case: Case }>('/cases', { method: 'POST', body: json(data) }).then((r) => r.case),
+
+  updateCase: (id: string, data: Partial<CaseInput>) =>
+    request<{ case: Case }>(`/cases/${id}`, { method: 'PATCH', body: json(data) }).then((r) => r.case),
+
+  deleteCase: (id: string) => request<void>(`/cases/${id}`, { method: 'DELETE' }),
+
+  getCaseTimeline: (id: string) => request<CaseTimeline>(`/cases/${id}/timeline`),
+
+  /** The actuaciones of one reading (or a single one) are saved together: all of them or none. */
+  addProceedings: (caseId: string, items: ProceedingInput[]) =>
+    request<void>(`/cases/${caseId}/proceedings/batch`, { method: 'POST', body: json({ items }) }),
+
+  updateProceeding: (caseId: string, id: string, data: Partial<ProceedingInput>) =>
+    request<void>(`/cases/${caseId}/proceedings/${id}`, { method: 'PATCH', body: json(data) }),
+
+  deleteProceeding: (caseId: string, id: string) =>
+    request<void>(`/cases/${caseId}/proceedings/${id}`, { method: 'DELETE' }),
+
+  /** Reads a text (pasted, or a file: PDF, photo, Word) and proposes its actuaciones; saves nothing. */
+  analyzeProceedings(caseId: string, source: { text: string } | { file: File }) {
+    if ('file' in source) {
+      const form = new FormData();
+      form.append('file', source.file);
+      return request<{ proposal: TimelineProposal }>(`/cases/${caseId}/proceedings/analyze`, { method: 'POST', body: form }).then(
+        (r) => r.proposal,
+      );
+    }
+    return request<{ proposal: TimelineProposal }>(`/cases/${caseId}/proceedings/analyze`, {
+      method: 'POST',
+      body: json({ text: source.text }),
+    }).then((r) => r.proposal);
+  },
 
   listDeadlines: (filters: { status?: DeadlineStatus; clientId?: string } = {}) => {
     const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value)).toString();

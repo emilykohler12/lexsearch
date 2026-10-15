@@ -1,6 +1,9 @@
 import { createBrowserRouter, Link } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import { Layout } from './components/Layout';
+import { CaseEditorPage } from './pages/CaseEditorPage';
+import { CasesPage } from './pages/CasesPage';
+import { CaseTimelinePage } from './pages/CaseTimelinePage';
 import { ClientDetailPage } from './pages/ClientDetailPage';
 import { ClientsPage } from './pages/ClientsPage';
 import { ConsultPage } from './pages/ConsultPage';
@@ -32,6 +35,10 @@ const router = createBrowserRouter([
       { path: 'clientes', element: <ClientsPage /> },
       { path: 'clientes/nuevo', element: <ClientDetailPage /> },
       { path: 'clientes/:id', element: <ClientDetailPage /> },
+      { path: 'expedientes', element: <CasesPage /> },
+      { path: 'expedientes/nuevo', element: <CaseEditorPage /> },
+      { path: 'expedientes/:id', element: <CaseTimelinePage /> },
+      { path: 'expedientes/:id/editar', element: <CaseEditorPage /> },
       { path: 'plazos', element: <PlazosPage /> },
       { path: 'plazos/nuevo', element: <DeadlineEditorPage /> },
       { path: 'plazos/inhabiles', element: <NonWorkingDaysPage /> },

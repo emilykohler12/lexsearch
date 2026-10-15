@@ -1,5 +1,13 @@
 import { z } from 'zod';
 import { nonWorkingDayInputSchema } from '../modules/calendar/calendar.schemas.js';
+import {
+  analyzeTextSchema,
+  createCaseSchema,
+  createProceedingSchema,
+  createProceedingsBatchSchema,
+  updateCaseSchema,
+  updateProceedingSchema,
+} from '../modules/cases/cases.schemas.js';
 import { analyzeNotesSchema, createClientSchema, updateClientSchema } from '../modules/clients/clients.schemas.js';
 import {
   calculateSchema,
@@ -32,6 +40,7 @@ const errorResponse = {
 };
 
 const idParam = { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } };
+const proceedingIdParam = { name: 'proceedingId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } };
 const json = (schema: object) => ({ content: { 'application/json': { schema } } });
 
 export function buildOpenApiDocument() {
@@ -49,6 +58,7 @@ export function buildOpenApiDocument() {
       { name: 'Biblioteca', description: 'Documentos propios: legislación, jurisprudencia, doctrina y modelos' },
       { name: 'Consultas', description: 'Búsqueda en la biblioteca y respuestas con citas (RAG)' },
       { name: 'Clientes', description: 'Fichas de cliente: datos, contraparte, caso y documentación que falta reunir' },
+      { name: 'Expedientes', description: 'Expedientes, sus actuaciones y la línea de tiempo (actuaciones y vencimientos ordenados por fecha)' },
       { name: 'Plazos', description: 'Plazos procesales y contractuales: vencimientos calculados con el calendario, y lectura de cédulas y resoluciones' },
       { name: 'Calendario', description: 'Feriados nacionales (calculados) y días inhábiles propios (feria judicial, asuetos)' },
       { name: 'Avisos', description: 'Avisos generados por el sistema (plazos por vencer)' },
@@ -184,6 +194,107 @@ export function buildOpenApiDocument() {
           responses: { 204: { description: 'Eliminado' }, 404: errorResponse },
         },
       },
+      '/api/cases': {
+        get: {
+          tags: ['Expedientes'],
+          summary: 'Listar expedientes (el último con movimiento, primero)',
+          parameters: [
+            { name: 'status', in: 'query', schema: { type: 'string', enum: ['ACTIVE', 'PAUSED', 'CLOSED'] } },
+            { name: 'clientId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Expedientes con sus clientes, la fecha de la última actuación y el próximo vencimiento' },
+            400: errorResponse,
+          },
+        },
+        post: {
+          tags: ['Expedientes'],
+          summary: 'Crear un expediente',
+          description: 'Solo la carátula es obligatoria. Puede tener uno o más clientes.',
+          requestBody: { required: true, ...json(jsonSchema(createCaseSchema)) },
+          responses: { 201: { description: 'Expediente creado' }, 400: errorResponse },
+        },
+      },
+      '/api/cases/{id}': {
+        parameters: [idParam],
+        get: { tags: ['Expedientes'], summary: 'Detalle de un expediente', responses: { 200: { description: 'OK' }, 404: errorResponse } },
+        patch: {
+          tags: ['Expedientes'],
+          summary: 'Guardar cambios (solo los campos enviados; clientIds reemplaza la lista de clientes)',
+          requestBody: { required: true, ...json(jsonSchema(updateCaseSchema)) },
+          responses: { 200: { description: 'OK' }, 400: errorResponse, 404: errorResponse },
+        },
+        delete: {
+          tags: ['Expedientes'],
+          summary: 'Eliminar un expediente',
+          description: 'Se borran sus actuaciones. Sus plazos se conservan, sin el vínculo con el expediente.',
+          responses: { 204: { description: 'Eliminado' }, 404: errorResponse },
+        },
+      },
+      '/api/cases/{id}/timeline': {
+        parameters: [idParam],
+        get: {
+          tags: ['Expedientes'],
+          summary: 'Línea de tiempo: actuaciones y vencimientos de plazos del expediente, de la más antigua a la más reciente',
+          description: 'El día del vencimiento de un plazo ocupa su lugar en la línea, junto a las actuaciones de esa fecha.',
+          responses: { 200: { description: 'El expediente y sus entradas (type PROCEEDING o DEADLINE)' }, 404: errorResponse },
+        },
+      },
+      '/api/cases/{id}/proceedings': {
+        parameters: [idParam],
+        post: {
+          tags: ['Expedientes'],
+          summary: 'Agregar una actuación',
+          requestBody: { required: true, ...json(jsonSchema(createProceedingSchema)) },
+          responses: { 201: { description: 'Actuación creada' }, 400: errorResponse, 404: errorResponse },
+        },
+      },
+      '/api/cases/{id}/proceedings/batch': {
+        parameters: [idParam],
+        post: {
+          tags: ['Expedientes'],
+          summary: 'Agregar varias actuaciones juntas (las de una misma lectura): todas o ninguna',
+          requestBody: { required: true, ...json(jsonSchema(createProceedingsBatchSchema)) },
+          responses: { 201: { description: 'Actuaciones creadas' }, 400: errorResponse, 404: errorResponse },
+        },
+      },
+      '/api/cases/{id}/proceedings/analyze': {
+        parameters: [idParam],
+        post: {
+          tags: ['Expedientes'],
+          summary: 'Leer un texto con los movimientos del expediente y proponer sus actuaciones',
+          description:
+            'La IA (Gemini) extrae las actuaciones que el texto presenta con fecha; cada cita se verifica contra el texto y las que el expediente ya tiene se marcan como repetidas. El texto se envía pegado (JSON) o como archivo (PDF, imagen, Word o texto). No se guarda nada: el abogado confirma cada actuación.',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': { schema: jsonSchema(analyzeTextSchema) },
+              'multipart/form-data': {
+                schema: { type: 'object', required: ['file'], properties: { file: { type: 'string', format: 'binary' } } },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'Propuesta: datos del expediente que figuran en el texto y actuaciones ordenadas por fecha' },
+            400: errorResponse,
+            404: errorResponse,
+            413: errorResponse,
+            429: errorResponse,
+            502: errorResponse,
+            503: errorResponse,
+          },
+        },
+      },
+      '/api/cases/{id}/proceedings/{proceedingId}': {
+        parameters: [idParam, proceedingIdParam],
+        patch: {
+          tags: ['Expedientes'],
+          summary: 'Guardar cambios de una actuación (solo los campos enviados)',
+          requestBody: { required: true, ...json(jsonSchema(updateProceedingSchema)) },
+          responses: { 200: { description: 'OK' }, 400: errorResponse, 404: errorResponse },
+        },
+        delete: { tags: ['Expedientes'], summary: 'Eliminar una actuación', responses: { 204: { description: 'Eliminada' }, 404: errorResponse } },
+      },
       '/api/deadlines': {
         get: {
           tags: ['Plazos'],
@@ -191,6 +302,7 @@ export function buildOpenApiDocument() {
           parameters: [
             { name: 'status', in: 'query', schema: { type: 'string', enum: ['PENDING', 'DONE'] } },
             { name: 'clientId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+            { name: 'caseId', in: 'query', schema: { type: 'string', format: 'uuid' } },
           ],
           responses: { 200: { description: 'Plazos con los días que faltan y su estado (vencido, hoy, próximo, en curso, cumplido)' }, 400: errorResponse },
         },

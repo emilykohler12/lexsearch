@@ -1,11 +1,14 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import type {
+  CaseInput,
+  CaseStatus,
   ClientFields,
   CreateDraftInput,
   DeadlineInput,
   DeadlineStatus,
   DocumentCategory,
+  ProceedingInput,
   SearchFilters,
 } from './types';
 
@@ -20,6 +23,11 @@ export const queryKeys = {
   draft: (id: string) => ['drafts', 'detail', id] as const,
   clients: ['clients', 'list'] as const,
   client: (id: string) => ['clients', 'detail', id] as const,
+  // Everything about expedientes starts with 'cases': one invalidation refreshes lists, details and timelines.
+  cases: ['cases'] as const,
+  caseList: (filters: { status?: CaseStatus | undefined; clientId?: string | undefined }) => ['cases', 'list', filters] as const,
+  case: (id: string) => ['cases', 'detail', id] as const,
+  caseTimeline: (id: string) => ['cases', 'timeline', id] as const,
   // Everything about deadlines starts with 'deadlines': one invalidation refreshes lists, details and previews.
   deadlines: ['deadlines'] as const,
   deadlineList: (filters: { status?: DeadlineStatus | undefined; clientId?: string | undefined }) =>
@@ -191,8 +199,9 @@ export function useUpdateClient() {
     onSuccess: (client) => {
       queryClient.setQueryData(queryKeys.client(client.id), client);
       void queryClient.invalidateQueries({ queryKey: queryKeys.clients });
-      // Drafts show the name of their client.
+      // Drafts and expedientes show the name of their client.
       void queryClient.invalidateQueries({ queryKey: queryKeys.drafts });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases });
     },
   });
 }
@@ -204,6 +213,7 @@ export function useDeleteClient() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.clients });
       void queryClient.invalidateQueries({ queryKey: queryKeys.drafts });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases });
     },
   });
 }
@@ -211,6 +221,102 @@ export function useDeleteClient() {
 /** Reads the notes of a first meeting and proposes a client file; saves nothing. */
 export function useAnalyzeNotes() {
   return useMutation({ mutationFn: api.analyzeNotes });
+}
+
+export function useCases(filters: { status?: CaseStatus; clientId?: string } = {}) {
+  return useQuery({ queryKey: queryKeys.caseList(filters), queryFn: () => api.listCases(filters) });
+}
+
+export function useCase(id: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.case(id ?? ''),
+    queryFn: () => api.getCase(id!),
+    enabled: Boolean(id),
+  });
+}
+
+/** The actuaciones and the deadlines of an expediente, oldest first. */
+export function useCaseTimeline(id: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.caseTimeline(id ?? ''),
+    queryFn: () => api.getCaseTimeline(id!),
+    enabled: Boolean(id),
+  });
+}
+
+export function useCreateCase() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CaseInput) => api.createCase(data),
+    onSuccess: (created) => {
+      queryClient.setQueryData(queryKeys.case(created.id), created);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases });
+    },
+  });
+}
+
+export function useUpdateCase() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string } & Partial<CaseInput>) => api.updateCase(id, data),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKeys.case(updated.id), updated);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases });
+      // Deadlines show the title of their expediente.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.deadlines });
+    },
+  });
+}
+
+export function useDeleteCase() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.deleteCase,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cases });
+      // Its deadlines stay, without the link.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.deadlines });
+    },
+  });
+}
+
+/** Every change to the actuaciones of an expediente refreshes its timeline and the summaries. */
+function useRefreshCases() {
+  const queryClient = useQueryClient();
+  return () => void queryClient.invalidateQueries({ queryKey: queryKeys.cases });
+}
+
+export function useAddProceedings() {
+  const refresh = useRefreshCases();
+  return useMutation({
+    mutationFn: ({ caseId, items }: { caseId: string; items: ProceedingInput[] }) => api.addProceedings(caseId, items),
+    onSuccess: refresh,
+  });
+}
+
+export function useUpdateProceeding() {
+  const refresh = useRefreshCases();
+  return useMutation({
+    mutationFn: ({ caseId, id, ...data }: { caseId: string; id: string } & Partial<ProceedingInput>) =>
+      api.updateProceeding(caseId, id, data),
+    onSuccess: refresh,
+  });
+}
+
+export function useDeleteProceeding() {
+  const refresh = useRefreshCases();
+  return useMutation({
+    mutationFn: ({ caseId, id }: { caseId: string; id: string }) => api.deleteProceeding(caseId, id),
+    onSuccess: refresh,
+  });
+}
+
+/** Reads a text or a file and proposes the actuaciones in it; saves nothing. */
+export function useAnalyzeProceedings() {
+  return useMutation({
+    mutationFn: ({ caseId, source }: { caseId: string; source: { text: string } | { file: File } }) =>
+      api.analyzeProceedings(caseId, source),
+  });
 }
 
 export function useDeadlines(filters: { status?: DeadlineStatus; clientId?: string } = {}) {
@@ -231,6 +337,8 @@ function useRefreshDeadlines() {
   return () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.deadlines });
     void queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
+    // The timeline and the summary of an expediente include its deadlines.
+    void queryClient.invalidateQueries({ queryKey: queryKeys.cases });
   };
 }
 
