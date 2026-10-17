@@ -21,7 +21,7 @@
     "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend"
   },
   "devDependencies": {
-    "concurrently": "^10.0.5"
+    "concurrently": "^10.0.6"
   },
   "engines": {
     "node": ">=24"
