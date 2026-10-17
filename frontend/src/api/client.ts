@@ -11,6 +11,8 @@ import type {
   ClientFields,
   ClientProposal,
   ClientSummary,
+  Contradiction,
+  ContradictionProposal,
   CreateDraftInput,
   Deadline,
   DeadlineInput,
@@ -20,6 +22,7 @@ import type {
   DueDateCalculation,
   Draft,
   DraftSummary,
+  FindingInput,
   Health,
   InteractionDetail,
   InteractionSummary,
@@ -77,16 +80,19 @@ export const api = {
     return (await response.json()) as Health;
   },
 
-  listDocuments: () => request<{ documents: LibraryDocument[] }>('/documents').then((r) => r.documents),
+  listDocuments: (filters: { caseId?: string } = {}) =>
+    request<{ documents: LibraryDocument[] }>(`/documents${filters.caseId ? `?caseId=${filters.caseId}` : ''}`).then((r) => r.documents),
 
-  uploadDocuments(files: File[], category: DocumentCategory) {
+  uploadDocuments(files: File[], category: DocumentCategory, caseId?: string) {
     const form = new FormData();
     for (const file of files) form.append('files', file);
     form.append('category', category);
+    if (caseId) form.append('caseId', caseId);
     return request<{ results: UploadResult[] }>('/documents', { method: 'POST', body: form }).then((r) => r.results);
   },
 
-  updateDocument: (id: string, data: { title?: string; category?: DocumentCategory }) =>
+  /** `caseId` links the document to an expediente; null takes it back to the general library. */
+  updateDocument: (id: string, data: { title?: string; category?: DocumentCategory; caseId?: string | null }) =>
     request<{ document: LibraryDocument }>(`/documents/${id}`, { method: 'PATCH', body: json(data) }).then(
       (r) => r.document,
     ),
@@ -184,6 +190,29 @@ export const api = {
       body: json({ text: source.text }),
     }).then((r) => r.proposal);
   },
+
+  listContradictions: (caseId: string) =>
+    request<{ contradictions: Contradiction[] }>(`/cases/${caseId}/contradictions`).then((r) => r.contradictions),
+
+  /** Compares the chosen documents of the expediente and proposes the contradictions; saves nothing. */
+  analyzeContradictions: (caseId: string, input: { documentIds: string[]; focus: string }) =>
+    request<{ proposal: ContradictionProposal }>(`/cases/${caseId}/contradictions/analyze`, {
+      method: 'POST',
+      body: json(input),
+    }).then((r) => r.proposal),
+
+  /** The findings of one comparison are saved together: all of them or none. */
+  saveContradictions: (caseId: string, items: FindingInput[]) =>
+    request<{ contradictions: Contradiction[] }>(`/cases/${caseId}/contradictions`, { method: 'POST', body: json({ items }) }).then(
+      (r) => r.contradictions,
+    ),
+
+  updateContradictionNote: (caseId: string, id: string, note: string) =>
+    request<{ contradiction: Contradiction }>(`/cases/${caseId}/contradictions/${id}`, { method: 'PATCH', body: json({ note }) }).then(
+      (r) => r.contradiction,
+    ),
+
+  deleteContradiction: (caseId: string, id: string) => request<void>(`/cases/${caseId}/contradictions/${id}`, { method: 'DELETE' }),
 
   listDeadlines: (filters: { status?: DeadlineStatus; clientId?: string } = {}) => {
     const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value)).toString();

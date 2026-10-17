@@ -1,6 +1,6 @@
 // Shapes returned by the LexSearch API (see backend/src/**/*.schemas.ts and /api/docs).
 
-export type DocumentCategory = 'LEGISLACION' | 'JURISPRUDENCIA' | 'DOCTRINA' | 'MODELO' | 'ESCRITO' | 'OTRO';
+export type DocumentCategory = 'LEGISLACION' | 'JURISPRUDENCIA' | 'DOCTRINA' | 'MODELO' | 'ESCRITO' | 'PRUEBA' | 'OTRO';
 export type DocumentStatus = 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED';
 
 export interface LibraryDocument {
@@ -10,6 +10,8 @@ export interface LibraryDocument {
   mimeType: string;
   sizeBytes: number;
   category: DocumentCategory;
+  /** The expediente the document belongs to (a prueba, a escrito); null if it is in the general library. */
+  caseId: string | null;
   status: DocumentStatus;
   errorMessage: string | null;
   pageCount: number | null;
@@ -436,4 +438,60 @@ export interface ClientProposal {
   conflictSummary: string;
   claim: string;
   missingDocuments: string[];
+}
+
+export type FindingKind = 'FECHA' | 'MONTO' | 'DECLARACION' | 'OTRO';
+/** DIRECTA: the statements can't both be true. POSIBLE: they might be reconciled; the lawyer has to look. */
+export type FindingConfidence = 'DIRECTA' | 'POSIBLE';
+
+/** One of the statements that clash: where it is and what it says. */
+export interface FindingStatement {
+  documentId: string;
+  /** The title the document had when the finding was made. */
+  documentTitle: string;
+  /** The document's own wording; empty when the AI's quote wasn't found in it. */
+  quote: string;
+  quoteVerified: boolean;
+}
+
+/** A contradiction found by comparing documents; nothing is saved until the lawyer confirms it. */
+export interface FindingProposal {
+  kind: FindingKind;
+  confidence: FindingConfidence;
+  title: string;
+  explanation: string;
+  statements: FindingStatement[];
+  /** At least two of the quotes were found in their documents. */
+  verified: boolean;
+  /** The expediente already has a confirmed finding about the same thing. */
+  duplicate: boolean;
+}
+
+export interface ContradictionProposal {
+  findings: FindingProposal[];
+  documents: Array<{ id: string; title: string; chars: number; truncated: boolean }>;
+}
+
+/** What the API saves when the lawyer confirms a finding. */
+export interface FindingInput {
+  kind: FindingKind;
+  confidence: FindingConfidence;
+  title: string;
+  explanation: string;
+  statements: FindingStatement[];
+  note: string;
+}
+
+/** A confirmed contradiction. */
+export interface Contradiction {
+  id: string;
+  caseId: string;
+  kind: FindingKind;
+  confidence: FindingConfidence;
+  title: string;
+  explanation: string;
+  note: string;
+  statements: Array<FindingStatement & { document: { id: string; title: string } | null }>;
+  createdAt: string;
+  updatedAt: string;
 }

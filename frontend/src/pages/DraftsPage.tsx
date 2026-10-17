@@ -7,7 +7,7 @@ import { Alert, PageHeader, Spinner } from '../components/ui';
 import { CATEGORIES, CATEGORY_LABELS, DRAFT_TYPE_LABELS, DRAFT_TYPES, formatDate } from '../lib/format';
 
 // Models and briefs first: they are the usual base for a new draft.
-const TEMPLATE_ORDER: DocumentCategory[] = ['MODELO', 'ESCRITO', 'LEGISLACION', 'JURISPRUDENCIA', 'DOCTRINA', 'OTRO'];
+const TEMPLATE_ORDER: DocumentCategory[] = ['MODELO', 'ESCRITO', 'LEGISLACION', 'JURISPRUDENCIA', 'DOCTRINA', 'OTRO', 'PRUEBA'];
 
 export function DraftsPage() {
   return (

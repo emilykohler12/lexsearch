@@ -1,43 +1,31 @@
-import { CalendarClock, Flag, Pencil, Plus, Sparkles } from 'lucide-react';
+import { CalendarClock, Flag, Plus, Sparkles } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link } from 'react-router';
 import { useCaseTimeline, useDeleteProceeding } from '../api/hooks';
-import type { Case, CaseStatus, ProceedingTimelineItem, TimelineItem } from '../api/types';
-import { Alert, Dialog, PracticeAreaBadge, Spinner } from '../components/ui';
+import type { Case, ProceedingTimelineItem, TimelineItem } from '../api/types';
+import { Alert, Dialog, Spinner } from '../components/ui';
+import { useCaseContext } from '../features/cases/case-context';
 import { CaseTimeline } from '../features/cases/CaseTimeline';
 import { ProceedingDialog } from '../features/cases/ProceedingDialog';
 import { ProceedingImporter } from '../features/cases/ProceedingImporter';
-import { agoText, CASE_STATUS_LABELS, daysBetween, plural } from '../lib/format';
-
-const STATUS_STYLES: Record<CaseStatus, string> = {
-  ACTIVE: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
-  PAUSED: 'bg-amber-50 text-amber-800 ring-amber-200',
-  CLOSED: 'bg-slate-100 text-slate-700 ring-slate-200',
-};
 
 /** More items than this: a button to jump to today is worth showing. */
 const LONG_TIMELINE = 6;
 
+/** The «Línea de tiempo» section of an expediente. */
 export function CaseTimelinePage() {
-  const { id } = useParams();
-  const { data, isPending, isError, error } = useCaseTimeline(id);
+  const { found } = useCaseContext();
+  const { data, isPending, isError, error } = useCaseTimeline(found.id);
 
   return (
     <>
-      <Link to="/expedientes" className="inline-flex min-h-10 items-center text-sm text-muted hover:text-ink">
-        ← Volver a expedientes
-      </Link>
       {isPending && (
-        <p className="mt-6 flex items-center gap-2 text-sm text-muted">
+        <p className="flex items-center gap-2 text-sm text-muted">
           <Spinner /> Cargando…
         </p>
       )}
-      {isError && (
-        <div className="mt-6">
-          <Alert tone="error">{error.message}</Alert>
-        </div>
-      )}
-      {data && <CaseTimelineView key={data.case.id} found={data.case} items={data.items} today={data.today} />}
+      {isError && <Alert tone="error">{error.message}</Alert>}
+      {data && <CaseTimelineView found={found} items={data.items} today={data.today} />}
     </>
   );
 }
@@ -50,12 +38,6 @@ function CaseTimelineView({ found, items, today }: { found: Case; items: Timelin
   const [notice, setNotice] = useState<string | null>(null);
   const remove = useDeleteProceeding();
 
-  const stats = [
-    plural(found.proceedingCount, 'actuación', 'actuaciones'),
-    found.lastProceedingDate && `último movimiento ${agoText(daysBetween(found.lastProceedingDate, today))}`,
-    found.pendingDeadlines > 0 && plural(found.pendingDeadlines, 'plazo pendiente', 'plazos pendientes'),
-  ].filter(Boolean);
-
   // A new deadline from here arrives with the expediente (and its client, when it has just one) already chosen.
   const newDeadline = new URLSearchParams({ expediente: found.id });
   if (found.clients.length === 1) newDeadline.set('cliente', found.clients[0]!.id);
@@ -66,26 +48,7 @@ function CaseTimelineView({ found, items, today }: { found: Case; items: Timelin
   };
 
   return (
-    <div className="mt-4 space-y-6">
-      <header className="space-y-3">
-        <div>
-          <h1 className="text-2xl break-words sm:text-3xl">{found.title}</h1>
-          {(found.number || found.court) && <p className="mt-1 text-sm break-words text-muted">{[found.number, found.court].filter(Boolean).join(' · ')}</p>}
-        </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
-          <span className={`inline-flex rounded-full px-2 py-0.5 font-medium ring-1 ${STATUS_STYLES[found.status]}`}>
-            {CASE_STATUS_LABELS[found.status]}
-          </span>
-          {found.practiceArea && <PracticeAreaBadge area={found.practiceArea} />}
-          {found.clients.map((client) => (
-            <Link key={client.id} to={`/clientes/${client.id}`} className="text-sm text-muted underline hover:text-ink">
-              {client.fullName}
-            </Link>
-          ))}
-        </div>
-        <p className="text-sm text-muted">{stats.join(' · ')}</p>
-      </header>
-
+    <div className="space-y-6">
       <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         <button type="button" className="btn-primary min-h-11 sm:min-h-0" onClick={() => setEditing('new')}>
           <Plus className="size-4" aria-hidden />
@@ -107,14 +70,10 @@ function CaseTimelineView({ found, items, today }: { found: Case; items: Timelin
           <CalendarClock className="size-4" aria-hidden />
           Nuevo plazo
         </Link>
-        <Link to={`/expedientes/${found.id}/editar`} className="btn-secondary min-h-11 sm:min-h-0">
-          <Pencil className="size-4" aria-hidden />
-          Editar datos
-        </Link>
         {items.length > LONG_TIMELINE && (
           <button
             type="button"
-            className="btn-ghost col-span-2 min-h-11 sm:col-span-1 sm:min-h-0"
+            className="btn-ghost min-h-11 sm:min-h-0"
             onClick={() => document.getElementById('hoy')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
           >
             <Flag className="size-4" aria-hidden />

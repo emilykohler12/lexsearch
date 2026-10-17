@@ -12,6 +12,7 @@ import type { TextChunk } from './ingestion/chunking.js';
 export interface DocumentFilters {
   category?: DocumentCategory | undefined;
   status?: DocumentStatus | undefined;
+  caseId?: string | undefined;
 }
 
 export interface NewDocument {
@@ -22,6 +23,14 @@ export interface NewDocument {
   sha256: string;
   storagePath: string;
   category: DocumentCategory;
+  caseId?: string | null | undefined;
+}
+
+export interface DocumentChanges {
+  title?: string | undefined;
+  category?: DocumentCategory | undefined;
+  /** null: back to the general library. */
+  caseId?: string | null | undefined;
 }
 
 export interface IndexedDocumentMeta {
@@ -44,9 +53,16 @@ export class DocumentsRepository {
     return this.db.document.findUnique({ where: { sha256 } });
   }
 
+  /** The title of each of those documents (by id); the ones that no longer exist are missing. */
+  async findTitles(ids: string[]): Promise<Map<string, string>> {
+    if (ids.length === 0) return new Map();
+    const rows = await this.db.document.findMany({ where: { id: { in: ids } }, select: { id: true, title: true } });
+    return new Map(rows.map((row) => [row.id, row.title]));
+  }
+
   list(filters: DocumentFilters): Promise<Document[]> {
     return this.db.document.findMany({
-      where: { category: filters.category, status: filters.status },
+      where: { category: filters.category, status: filters.status, caseId: filters.caseId },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -55,7 +71,7 @@ export class DocumentsRepository {
     return this.db.document.create({ data });
   }
 
-  update(id: string, data: { title?: string | undefined; category?: DocumentCategory | undefined }): Promise<Document> {
+  update(id: string, data: DocumentChanges): Promise<Document> {
     return this.db.document.update({ where: { id }, data });
   }
 

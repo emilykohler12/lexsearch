@@ -1,18 +1,35 @@
-import { ExternalLink, FileText, Pencil, RefreshCw, Trash2 } from 'lucide-react';
+import { ExternalLink, FileText, FolderKanban, Pencil, RefreshCw, Trash2, Unlink } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { api } from '../../api/client';
-import { useDeleteDocument, useReprocessDocument, useUpdateDocument } from '../../api/hooks';
+import { useCases, useDeleteDocument, useReprocessDocument, useUpdateDocument } from '../../api/hooks';
 import type { DocumentCategory, LibraryDocument } from '../../api/types';
 import { Alert, CategoryBadge, Dialog, Spinner, StatusBadge } from '../../components/ui';
 import { CATEGORIES, CATEGORY_LABELS, formatBytes, formatDate, plural } from '../../lib/format';
 
-export function DocumentsTable({ documents }: { documents: LibraryDocument[] }) {
+/**
+ * The documents with their actions. With `caseId` they are the ones of that expediente (and can
+ * be taken out of it); without it, the whole library, each one marked with the expediente it belongs to.
+ */
+export function DocumentsTable({
+  documents,
+  heading = 'Tus documentos',
+  caseId,
+}: {
+  documents: LibraryDocument[];
+  heading?: string;
+  caseId?: string;
+}) {
   const [filter, setFilter] = useState('');
   const [category, setCategory] = useState<DocumentCategory | ''>('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<LibraryDocument | null>(null);
   const remove = useDeleteDocument();
   const reprocess = useReprocessDocument();
+  const unlink = useUpdateDocument();
+  // In the library each document says which expediente it belongs to.
+  const { data: cases } = useCases();
+  const caseTitles = useMemo(() => new Map((cases ?? []).map((found) => [found.id, found.title])), [cases]);
 
   const visible = useMemo(() => {
     const needle = filter.trim().toLowerCase();
@@ -23,7 +40,7 @@ export function DocumentsTable({ documents }: { documents: LibraryDocument[] }) 
     );
   }, [documents, filter, category]);
 
-  const actionError = remove.error ?? reprocess.error;
+  const actionError = remove.error ?? reprocess.error ?? unlink.error;
 
   const deleteDocument = (document: LibraryDocument) =>
     remove.mutate(document.id, { onSettled: () => setToDelete(null) });
@@ -32,7 +49,7 @@ export function DocumentsTable({ documents }: { documents: LibraryDocument[] }) 
     <section className="card overflow-hidden" aria-labelledby="documents-title">
       <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-4 sm:px-5">
         <h2 id="documents-title" className="mr-auto text-lg">
-          Tus documentos <span className="font-sans text-sm text-muted">({documents.length})</span>
+          {heading} <span className="font-sans text-sm text-muted">({documents.length})</span>
         </h2>
         <input
           className="input w-full sm:w-56"
@@ -82,6 +99,16 @@ export function DocumentsTable({ documents }: { documents: LibraryDocument[] }) 
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
                     <CategoryBadge category={document.category} />
                     <StatusBadge status={document.status} />
+                    {!caseId && document.caseId && caseTitles.has(document.caseId) && (
+                      <Link
+                        to={`/expedientes/${document.caseId}/documentos`}
+                        className="inline-flex max-w-full items-center gap-1 rounded-md bg-navy-900/5 px-2 py-0.5 text-xs font-medium text-navy-800 ring-1 ring-navy-900/10 hover:underline"
+                        title="Ir a los documentos del expediente"
+                      >
+                        <FolderKanban className="size-3 shrink-0" aria-hidden />
+                        <span className="truncate">{caseTitles.get(document.caseId)}</span>
+                      </Link>
+                    )}
                     {document.ocrPageCount > 0 && (
                       <span
                         className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200"
@@ -117,6 +144,18 @@ export function DocumentsTable({ documents }: { documents: LibraryDocument[] }) 
                     <Pencil className="size-4" aria-hidden />
                     <span className="sr-only">Editar {document.title}</span>
                   </button>
+                  {caseId && (
+                    <button
+                      type="button"
+                      className="btn-icon"
+                      onClick={() => unlink.mutate({ id: document.id, caseId: null })}
+                      disabled={unlink.isPending}
+                      title="Quitar del expediente (queda en la biblioteca)"
+                    >
+                      <Unlink className="size-4" aria-hidden />
+                      <span className="sr-only">Quitar {document.title} del expediente</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="btn-icon"

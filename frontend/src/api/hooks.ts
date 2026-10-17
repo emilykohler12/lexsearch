@@ -8,13 +8,16 @@ import type {
   DeadlineInput,
   DeadlineStatus,
   DocumentCategory,
+  FindingInput,
   ProceedingInput,
   SearchFilters,
 } from './types';
 
 export const queryKeys = {
   health: ['health'] as const,
+  // Everything about documents starts with 'documents': one invalidation refreshes the library and the ones of an expediente.
   documents: ['documents'] as const,
+  documentList: (filters: { caseId?: string | undefined }) => ['documents', 'list', filters] as const,
   interactions: ['interactions'] as const,
   interaction: (id: string) => ['interactions', id] as const,
   // Lists share a prefix, so invalidating `drafts` also refreshes the ones filtered by client.
@@ -28,6 +31,7 @@ export const queryKeys = {
   caseList: (filters: { status?: CaseStatus | undefined; clientId?: string | undefined }) => ['cases', 'list', filters] as const,
   case: (id: string) => ['cases', 'detail', id] as const,
   caseTimeline: (id: string) => ['cases', 'timeline', id] as const,
+  contradictions: (caseId: string) => ['cases', 'contradictions', caseId] as const,
   // Everything about deadlines starts with 'deadlines': one invalidation refreshes lists, details and previews.
   deadlines: ['deadlines'] as const,
   deadlineList: (filters: { status?: DeadlineStatus | undefined; clientId?: string | undefined }) =>
@@ -48,10 +52,11 @@ export function useHealth() {
   });
 }
 
-export function useDocuments() {
+/** The whole library, or only the documents of one expediente. */
+export function useDocuments(filters: { caseId?: string } = {}) {
   return useQuery({
-    queryKey: queryKeys.documents,
-    queryFn: api.listDocuments,
+    queryKey: queryKeys.documentList(filters),
+    queryFn: () => api.listDocuments(filters),
     // While something is being indexed, refresh often to show progress.
     refetchInterval: (query) =>
       query.state.data?.some((d) => d.status === 'PENDING' || d.status === 'PROCESSING') ? 2_000 : false,
@@ -61,8 +66,8 @@ export function useDocuments() {
 export function useUploadDocuments() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ files, category }: { files: File[]; category: DocumentCategory }) =>
-      api.uploadDocuments(files, category),
+    mutationFn: ({ files, category, caseId }: { files: File[]; category: DocumentCategory; caseId?: string }) =>
+      api.uploadDocuments(files, category, caseId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.documents }),
   });
 }
@@ -70,9 +75,13 @@ export function useUploadDocuments() {
 export function useUpdateDocument() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; title?: string; category?: DocumentCategory }) =>
+    mutationFn: ({ id, ...data }: { id: string; title?: string; category?: DocumentCategory; caseId?: string | null }) =>
       api.updateDocument(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.documents }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+      // A renamed document is renamed in the findings that point at it.
+      void queryClient.invalidateQueries({ queryKey: ['cases', 'contradictions'] });
+    },
   });
 }
 
@@ -316,6 +325,46 @@ export function useAnalyzeProceedings() {
   return useMutation({
     mutationFn: ({ caseId, source }: { caseId: string; source: { text: string } | { file: File } }) =>
       api.analyzeProceedings(caseId, source),
+  });
+}
+
+export function useContradictions(caseId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.contradictions(caseId ?? ''),
+    queryFn: () => api.listContradictions(caseId!),
+    enabled: Boolean(caseId),
+  });
+}
+
+/** Compares the chosen documents of an expediente and proposes the contradictions; saves nothing. */
+export function useAnalyzeContradictions() {
+  return useMutation({
+    mutationFn: ({ caseId, documentIds, focus }: { caseId: string; documentIds: string[]; focus: string }) =>
+      api.analyzeContradictions(caseId, { documentIds, focus }),
+  });
+}
+
+export function useSaveContradictions() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ caseId, items }: { caseId: string; items: FindingInput[] }) => api.saveContradictions(caseId, items),
+    onSuccess: (_saved, { caseId }) => queryClient.invalidateQueries({ queryKey: queryKeys.contradictions(caseId) }),
+  });
+}
+
+export function useUpdateContradictionNote() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ caseId, id, note }: { caseId: string; id: string; note: string }) => api.updateContradictionNote(caseId, id, note),
+    onSuccess: (_updated, { caseId }) => queryClient.invalidateQueries({ queryKey: queryKeys.contradictions(caseId) }),
+  });
+}
+
+export function useDeleteContradiction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ caseId, id }: { caseId: string; id: string }) => api.deleteContradiction(caseId, id),
+    onSuccess: (_deleted, { caseId }) => queryClient.invalidateQueries({ queryKey: queryKeys.contradictions(caseId) }),
   });
 }
 

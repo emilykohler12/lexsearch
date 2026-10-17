@@ -8,8 +8,15 @@ import { CATEGORIES, CATEGORY_LABELS } from '../../lib/format';
 // Photos and scans are read with OCR.
 const ACCEPT = '.pdf,.docx,.txt,.md,.jpg,.jpeg,.png,.webp,.tif,.tiff';
 
-export function UploadPanel() {
-  const [category, setCategory] = useState<DocumentCategory>('LEGISLACION');
+/** Uploads documents to the library; with `caseId`, to an expediente (they are its pruebas, escritos...). */
+export function UploadPanel({
+  caseId,
+  defaultCategory = 'LEGISLACION',
+}: {
+  caseId?: string;
+  defaultCategory?: DocumentCategory;
+}) {
+  const [category, setCategory] = useState<DocumentCategory>(defaultCategory);
   const [dragging, setDragging] = useState(false);
   const [results, setResults] = useState<UploadResult[] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -21,7 +28,7 @@ export function UploadPanel() {
     const files = Array.from(fileList ?? []);
     if (files.length === 0) return;
     setResults(null);
-    upload.mutate({ files, category }, { onSuccess: setResults });
+    upload.mutate({ files, category, ...(caseId && { caseId }) }, { onSuccess: setResults });
     if (inputRef.current) inputRef.current.value = '';
   };
 

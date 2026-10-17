@@ -78,11 +78,21 @@ export interface AgentRunResult {
   usage: LlmUsage;
 }
 
+/** How much a model reasons before answering: more is slower and costs more, but handles harder tasks. */
+export type ReasoningLevel = 'minimal' | 'low' | 'medium' | 'high';
+
 export interface StructuredInput<T> {
   systemPrompt: string;
   userMessage: string;
   /** Shape of the answer: sent to the model as a JSON Schema and used to validate what comes back. */
   schema: z.ZodType<T>;
+  /** Time each model gets to answer. Long inputs (several documents at once) need more than the usual. */
+  timeoutMs?: number | undefined;
+  /**
+   * The least reasoning this task needs (comparing documents asks for more than filling in a form).
+   * The level set in the configuration is used instead when it is higher.
+   */
+  minReasoning?: ReasoningLevel | undefined;
 }
 
 export interface StructuredResult<T> {

@@ -25,6 +25,7 @@ import type {
   GroundingDocument,
   LlmProvider,
   LlmUsage,
+  ReasoningLevel,
   StructuredInput,
   StructuredResult,
 } from './llm-provider.js';
@@ -88,7 +89,15 @@ const MAX_TOOL_CALLS_PER_ROUND = 4;
 // worth trying the next model instead of failing the lawyer's query.
 const TRY_NEXT_MODEL_STATUSES = new Set([404, 429, 500, 502, 503, 504]);
 
-export type GeminiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
+export type GeminiThinkingLevel = ReasoningLevel;
+
+const REASONING_ORDER: ReasoningLevel[] = ['minimal', 'low', 'medium', 'high'];
+
+/** The higher of the two levels (an unset one counts as the lowest). */
+export function higherReasoning(a: ReasoningLevel | undefined, b: ReasoningLevel | undefined): ReasoningLevel | undefined {
+  if (!a || !b) return a ?? b;
+  return REASONING_ORDER.indexOf(a) >= REASONING_ORDER.indexOf(b) ? a : b;
+}
 
 const THINKING_LEVELS: Record<GeminiThinkingLevel, ThinkingLevel> = {
   minimal: ThinkingLevel.MINIMAL,
@@ -166,6 +175,8 @@ export class GeminiLlmProvider implements LlmProvider {
       systemPrompt: input.systemPrompt,
       text: input.userMessage,
       jsonSchema: toResponseJsonSchema(input.schema),
+      timeoutMs: input.timeoutMs,
+      minReasoning: input.minReasoning,
     });
     return { data: this.parseJson(response, input.schema), model: response.modelVersion ?? this.model, usage: usageOf(response) };
   }
@@ -182,8 +193,16 @@ export class GeminiLlmProvider implements LlmProvider {
    * One JSON-mode call. Tries the main model and, if it is busy, out of quota, retired or too
    * slow, each fallback in turn.
    */
-  private async generateJson(request: { systemPrompt: string; text: string; jsonSchema: Record<string, unknown> }) {
+  private async generateJson(request: {
+    systemPrompt: string;
+    text: string;
+    jsonSchema: Record<string, unknown>;
+    timeoutMs?: number | undefined;
+    minReasoning?: ReasoningLevel | undefined;
+  }) {
     const models = [this.model, ...this.fallbackModels];
+    const timeoutMs = request.timeoutMs ?? this.timeoutPerModelMs;
+    const thinkingLevel = higherReasoning(this.thinkingLevel, request.minReasoning);
 
     for (const [attempt, model] of models.entries()) {
       try {
@@ -195,10 +214,10 @@ export class GeminiLlmProvider implements LlmProvider {
             responseMimeType: 'application/json',
             responseJsonSchema: request.jsonSchema,
             safetySettings: SAFETY_SETTINGS,
-            abortSignal: AbortSignal.timeout(this.timeoutPerModelMs),
-            ...(this.thinkingLevel &&
+            abortSignal: AbortSignal.timeout(timeoutMs),
+            ...(thinkingLevel &&
               supportsThinkingLevel(model) && {
-                thinkingConfig: { thinkingLevel: THINKING_LEVELS[this.thinkingLevel] },
+                thinkingConfig: { thinkingLevel: THINKING_LEVELS[thinkingLevel] },
               }),
           },
         });

@@ -4,6 +4,8 @@ import type {
   DocumentCategory,
   DocumentStatus,
   DraftType,
+  FindingConfidence,
+  FindingKind,
   PersonType,
   PracticeArea,
   ProceedingKind,
@@ -15,6 +17,7 @@ export const CATEGORY_LABELS: Record<DocumentCategory, string> = {
   DOCTRINA: 'Doctrina',
   MODELO: 'Modelo propio',
   ESCRITO: 'Escrito',
+  PRUEBA: 'Prueba',
   OTRO: 'Otro',
 };
 
@@ -200,3 +203,15 @@ export function gapText(days: number): string {
   if (days < 730) return `${Math.round(days / 30.4)} meses`;
   return `${Math.round(days / 365)} años`;
 }
+
+export const FINDING_KIND_LABELS: Record<FindingKind, string> = {
+  FECHA: 'Fecha',
+  MONTO: 'Monto',
+  DECLARACION: 'Declaración',
+  OTRO: 'Otro',
+};
+
+export const FINDING_CONFIDENCE_LABELS: Record<FindingConfidence, string> = {
+  DIRECTA: 'Directa',
+  POSIBLE: 'Posible',
+};

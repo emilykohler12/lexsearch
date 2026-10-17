@@ -2,9 +2,10 @@ import { createHash } from 'node:crypto';
 import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { Prisma, type Document, type DocumentCategory } from '../../generated/prisma/client.js';
-import { ConflictError, NotFoundError } from '../../lib/errors.js';
+import { BadRequestError, ConflictError, NotFoundError } from '../../lib/errors.js';
 import type { FileStorage } from '../../lib/file-storage.js';
-import type { DocumentFilters, DocumentsRepository } from './documents.repository.js';
+import type { CasesRepository } from '../cases/cases.repository.js';
+import type { DocumentChanges, DocumentFilters, DocumentsRepository } from './documents.repository.js';
 import { assertContentMatches, detectFileType, UnsupportedFileError } from './file-types.js';
 import type { IngestionQueue } from './ingestion/ingestion-queue.js';
 
@@ -22,6 +23,7 @@ interface DocumentsServiceDeps {
   repository: DocumentsRepository;
   storage: FileStorage;
   queue: IngestionQueue;
+  cases: CasesRepository;
 }
 
 export class DocumentsService {
@@ -29,13 +31,23 @@ export class DocumentsService {
 
   async upload(
     files: IncomingFile[],
-    options: { category: DocumentCategory; title?: string | undefined },
+    options: { category: DocumentCategory; title?: string | undefined; caseId?: string | undefined },
   ): Promise<UploadOutcome[]> {
+    if (options.caseId) {
+      try {
+        await this.assertCaseExists(options.caseId);
+      } catch (error) {
+        // Nothing will be read: the temporary files go away.
+        await Promise.all(files.map((file) => rm(file.tempPath, { force: true })));
+        throw error;
+      }
+    }
+
     const outcomes: UploadOutcome[] = [];
     // One by one: keeps memory bounded and duplicate detection simple.
     for (const file of files) {
       const title = files.length === 1 ? options.title : undefined;
-      outcomes.push(await this.uploadOne(file, options.category, title));
+      outcomes.push(await this.uploadOne(file, options.category, title, options.caseId));
     }
     return outcomes;
   }
@@ -59,8 +71,9 @@ export class DocumentsService {
     };
   }
 
-  async update(id: string, data: { title?: string | undefined; category?: DocumentCategory | undefined }) {
+  async update(id: string, data: DocumentChanges) {
     await this.get(id);
+    if (data.caseId) await this.assertCaseExists(data.caseId);
     return this.deps.repository.update(id, data);
   }
 
@@ -87,10 +100,17 @@ export class DocumentsService {
     return unfinished.length;
   }
 
+  private async assertCaseExists(caseId: string): Promise<void> {
+    if (!(await this.deps.cases.exists(caseId))) {
+      throw new BadRequestError('El expediente elegido no existe o fue eliminado.');
+    }
+  }
+
   private async uploadOne(
     file: IncomingFile,
     category: DocumentCategory,
     title: string | undefined,
+    caseId: string | undefined,
   ): Promise<UploadOutcome> {
     const { repository, storage, queue } = this.deps;
     try {
@@ -102,7 +122,9 @@ export class DocumentsService {
       const existing = await repository.findBySha256(sha256);
       if (existing) {
         await rm(file.tempPath, { force: true });
-        return { status: 'duplicate', originalName: file.originalName, document: existing };
+        // The same file was already in the library, loose: uploading it to an expediente links it.
+        const document = caseId && !existing.caseId ? await repository.update(existing.id, { caseId }) : existing;
+        return { status: 'duplicate', originalName: file.originalName, document };
       }
 
       const storagePath = await storage.moveIn(file.tempPath, path.extname(file.originalName));
@@ -115,6 +137,7 @@ export class DocumentsService {
           sha256,
           storagePath,
           category,
+          caseId: caseId ?? null,
         });
         queue.enqueue(document.id);
         return { status: 'created', originalName: file.originalName, document };

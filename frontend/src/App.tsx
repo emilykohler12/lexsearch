@@ -1,7 +1,10 @@
 import { createBrowserRouter, Link } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import { Layout } from './components/Layout';
+import { CaseContradictionsPage } from './pages/CaseContradictionsPage';
+import { CaseDocumentsPage } from './pages/CaseDocumentsPage';
 import { CaseEditorPage } from './pages/CaseEditorPage';
+import { CaseLayoutPage } from './pages/CaseLayoutPage';
 import { CasesPage } from './pages/CasesPage';
 import { CaseTimelinePage } from './pages/CaseTimelinePage';
 import { ClientDetailPage } from './pages/ClientDetailPage';
@@ -37,7 +40,15 @@ const router = createBrowserRouter([
       { path: 'clientes/:id', element: <ClientDetailPage /> },
       { path: 'expedientes', element: <CasesPage /> },
       { path: 'expedientes/nuevo', element: <CaseEditorPage /> },
-      { path: 'expedientes/:id', element: <CaseTimelinePage /> },
+      {
+        path: 'expedientes/:id',
+        element: <CaseLayoutPage />,
+        children: [
+          { index: true, element: <CaseTimelinePage /> },
+          { path: 'documentos', element: <CaseDocumentsPage /> },
+          { path: 'contradicciones', element: <CaseContradictionsPage /> },
+        ],
+      },
       { path: 'expedientes/:id/editar', element: <CaseEditorPage /> },
       { path: 'plazos', element: <PlazosPage /> },
       { path: 'plazos/nuevo', element: <DeadlineEditorPage /> },

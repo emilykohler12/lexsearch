@@ -11,26 +11,32 @@ export const CATEGORY_LABELS: Record<DocumentCategory, string> = {
   MODELO: 'Modelo propio',
   ESCRITO: 'Escrito',
   OTRO: 'Otro',
+  PRUEBA: 'Prueba',
 };
 
 export const uploadFieldsSchema = z.object({
   category: categorySchema.default('OTRO'),
   /** Only applied when a single file is uploaded. */
   title: z.string().trim().max(300).optional(),
+  /** Expediente al que pertenecen los documentos (por ejemplo, sus pruebas). */
+  caseId: z.uuid().optional(),
 });
 
 export const listDocumentsQuerySchema = z.object({
   category: categorySchema.optional(),
   status: statusSchema.optional(),
+  caseId: z.uuid().optional(),
 });
 
 export const updateDocumentSchema = z
   .object({
     title: z.string().trim().min(1).max(300).optional(),
     category: categorySchema.optional(),
+    /** Vincula el documento a un expediente; null lo devuelve a la biblioteca general. */
+    caseId: z.uuid().nullable().optional(),
   })
-  .refine((data) => data.title !== undefined || data.category !== undefined, {
-    message: 'Indicá al menos un campo para actualizar (title o category)',
+  .refine((data) => data.title !== undefined || data.category !== undefined || data.caseId !== undefined, {
+    message: 'Indicá al menos un campo para actualizar (title, category o caseId)',
   });
 
 /** Public shape of a document: never exposes where the file is stored. */
@@ -42,6 +48,7 @@ export function toDocumentDto(document: Document) {
     mimeType: document.mimeType,
     sizeBytes: document.sizeBytes,
     category: document.category,
+    caseId: document.caseId,
     status: document.status,
     errorMessage: document.errorMessage,
     pageCount: document.pageCount,

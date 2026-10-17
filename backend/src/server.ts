@@ -43,7 +43,19 @@ const { app, queue, documentsService, deadlineWatcher } = createApp({
   maxUploadMb: env.MAX_UPLOAD_MB,
 });
 
-const server = app.listen(env.PORT, env.HOST, () => {
+const server = app.listen(env.PORT, env.HOST, (error?: Error) => {
+  // Express 5 hands the error to this function when the server can't start (for example, when the
+  // port is taken). Without this check the log would say it is listening when it is not.
+  if (error) {
+    const taken = (error as NodeJS.ErrnoException).code === 'EADDRINUSE';
+    logger.fatal(
+      { err: error },
+      taken
+        ? `El puerto ${env.PORT} ya está en uso: ¿hay otro LexSearch abierto? Cerralo, o cambiá PORT en el archivo .env.`
+        : 'No se pudo iniciar el servidor',
+    );
+    process.exit(1);
+  }
   logger.info(`LexSearch API escuchando en http://${env.HOST}:${env.PORT} (docs: /api/docs)`);
   if (!llm) {
     logger.warn('GEMINI_API_KEY no configurada: la búsqueda funciona, las respuestas con IA quedan desactivadas');

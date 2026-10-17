@@ -97,6 +97,11 @@ export class CasesRepository {
     return this.db.case.findUnique({ where: { id }, include: caseIncludeNow() });
   }
 
+  /** Cheaper than findById when all that matters is whether it is there. */
+  async exists(id: string): Promise<boolean> {
+    return (await this.db.case.count({ where: { id } })) > 0;
+  }
+
   /** `clientIds` replaces the whole list of clients when given. */
   update(id: string, changes: CaseChanges, clientIds?: string[]): Promise<CaseRow> {
     return this.db.case.update({

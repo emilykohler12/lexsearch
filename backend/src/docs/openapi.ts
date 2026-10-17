@@ -9,6 +9,7 @@ import {
   updateProceedingSchema,
 } from '../modules/cases/cases.schemas.js';
 import { analyzeNotesSchema, createClientSchema, updateClientSchema } from '../modules/clients/clients.schemas.js';
+import { analyzeSchema, createFindingsBatchSchema, updateFindingSchema } from '../modules/contradictions/contradictions.schemas.js';
 import {
   calculateSchema,
   createDeadlineSchema,
@@ -59,6 +60,7 @@ export function buildOpenApiDocument() {
       { name: 'Consultas', description: 'Búsqueda en la biblioteca y respuestas con citas (RAG)' },
       { name: 'Clientes', description: 'Fichas de cliente: datos, contraparte, caso y documentación que falta reunir' },
       { name: 'Expedientes', description: 'Expedientes, sus actuaciones y la línea de tiempo (actuaciones y vencimientos ordenados por fecha)' },
+      { name: 'Contradicciones', description: 'Comparación de los documentos de un expediente para encontrar contradicciones de fechas, montos o declaraciones' },
       { name: 'Plazos', description: 'Plazos procesales y contractuales: vencimientos calculados con el calendario, y lectura de cédulas y resoluciones' },
       { name: 'Calendario', description: 'Feriados nacionales (calculados) y días inhábiles propios (feria judicial, asuetos)' },
       { name: 'Avisos', description: 'Avisos generados por el sistema (plazos por vencer)' },
@@ -76,6 +78,7 @@ export function buildOpenApiDocument() {
           parameters: [
             { name: 'category', in: 'query', schema: { type: 'string' } },
             { name: 'status', in: 'query', schema: { type: 'string' } },
+            { name: 'caseId', in: 'query', description: 'Solo los documentos de este expediente', schema: { type: 'string', format: 'uuid' } },
           ],
           responses: { 200: { description: 'Lista de documentos' } },
         },
@@ -111,7 +114,7 @@ export function buildOpenApiDocument() {
         get: { tags: ['Biblioteca'], summary: 'Detalle de un documento', responses: { 200: { description: 'OK' }, 404: errorResponse } },
         patch: {
           tags: ['Biblioteca'],
-          summary: 'Cambiar título o categoría',
+          summary: 'Cambiar título o categoría, o vincular el documento a un expediente (caseId; null lo devuelve a la biblioteca general)',
           requestBody: { required: true, ...json(jsonSchema(updateDocumentSchema)) },
           responses: { 200: { description: 'OK' }, 400: errorResponse, 404: errorResponse },
         },
@@ -294,6 +297,48 @@ export function buildOpenApiDocument() {
           responses: { 200: { description: 'OK' }, 400: errorResponse, 404: errorResponse },
         },
         delete: { tags: ['Expedientes'], summary: 'Eliminar una actuación', responses: { 204: { description: 'Eliminada' }, 404: errorResponse } },
+      },
+      '/api/cases/{id}/contradictions': {
+        parameters: [idParam],
+        get: {
+          tags: ['Contradicciones'],
+          summary: 'Contradicciones confirmadas del expediente (en el orden en que se confirmaron)',
+          responses: { 200: { description: 'Cada una con sus afirmaciones y el documento al que remiten (null si se borró)' }, 404: errorResponse },
+        },
+        post: {
+          tags: ['Contradicciones'],
+          summary: 'Guardar las contradicciones que el abogado confirmó (las de una misma comparación): todas o ninguna',
+          requestBody: { required: true, ...json(jsonSchema(createFindingsBatchSchema)) },
+          responses: { 201: { description: 'Contradicciones guardadas' }, 400: errorResponse, 404: errorResponse },
+        },
+      },
+      '/api/cases/{id}/contradictions/analyze': {
+        parameters: [idParam],
+        post: {
+          tags: ['Contradicciones'],
+          summary: 'Comparar documentos del expediente y proponer las contradicciones entre ellos',
+          description:
+            'La IA (Gemini) lee los documentos elegidos (entre 2 y 8, todos del expediente y ya procesados) y señala contradicciones de fechas, montos o declaraciones. Cada afirmación trae una frase que se verifica contra el texto del documento que cita; si no aparece, el hallazgo se marca como no verificado. No se guarda nada: el abogado confirma cada hallazgo. Puede tardar hasta un minuto y medio.',
+          requestBody: { required: true, ...json(jsonSchema(analyzeSchema)) },
+          responses: {
+            200: { description: 'Propuesta: hallazgos (los directos primero) y los documentos leídos, con aviso de los que se leyeron solo en parte' },
+            400: errorResponse,
+            404: errorResponse,
+            429: errorResponse,
+            502: errorResponse,
+            503: errorResponse,
+          },
+        },
+      },
+      '/api/cases/{id}/contradictions/{contradictionId}': {
+        parameters: [idParam, { name: 'contradictionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        patch: {
+          tags: ['Contradicciones'],
+          summary: 'Guardar las observaciones del abogado sobre una contradicción',
+          requestBody: { required: true, ...json(jsonSchema(updateFindingSchema)) },
+          responses: { 200: { description: 'OK' }, 400: errorResponse, 404: errorResponse },
+        },
+        delete: { tags: ['Contradicciones'], summary: 'Eliminar una contradicción', responses: { 204: { description: 'Eliminada' }, 404: errorResponse } },
       },
       '/api/deadlines': {
         get: {

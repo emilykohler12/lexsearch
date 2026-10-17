@@ -2,7 +2,8 @@ import { ApiError, FinishReason, type GoogleGenAI } from '@google/genai';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { logger } from '../../src/lib/logger.js';
-import { GeminiLlmProvider } from '../../src/modules/llm/gemini-llm-provider.js';
+import { GeminiLlmProvider, higherReasoning } from '../../src/modules/llm/gemini-llm-provider.js';
+import type { ReasoningLevel } from '../../src/modules/llm/llm-provider.js';
 
 const schema = z.object({
   nombre: z.string().describe('Nombre del cliente. Vacío si no figura.'),
@@ -50,6 +51,17 @@ const provider = (client: Pick<GoogleGenAI, 'models'>, fallbackModels: string[] 
 
 const request = { systemPrompt: 'Armá la ficha.', userMessage: 'Vino Juan Ejemplo.', schema };
 
+describe('higherReasoning', () => {
+  it('picks the higher level and ignores an unset one', () => {
+    expect(higherReasoning('low', 'high')).toBe('high');
+    expect(higherReasoning('high', 'low')).toBe('high');
+    expect(higherReasoning('medium', 'medium')).toBe('medium');
+    expect(higherReasoning(undefined, 'low')).toBe('low');
+    expect(higherReasoning('minimal', undefined)).toBe('minimal');
+    expect(higherReasoning(undefined, undefined)).toBeUndefined();
+  });
+});
+
 describe('GeminiLlmProvider.generateStructured', () => {
   it('asks for JSON in the given shape and returns it validated', async () => {
     const { client, requests } = fakeClient({ data: { nombre: 'Juan Ejemplo', documentos: ['DNI'] } });
@@ -90,6 +102,38 @@ describe('GeminiLlmProvider.generateStructured', () => {
     await expect(provider(fakeClient({ data: { nombre: 5 } }).client).generateStructured(request)).rejects.toMatchObject({
       code: 'LLM_BAD_RESPONSE',
     });
+  });
+
+  it('asks for at least the reasoning the task needs', async () => {
+    const sentConfig = async (configured: ReasoningLevel | undefined, minReasoning?: ReasoningLevel) => {
+      const { client, requests } = fakeClient({ data: { nombre: 'Juan', documentos: [] } });
+      const llm = new GeminiLlmProvider({ apiKey: 'x', model: 'gemini-main', thinkingLevel: configured, logger, client });
+      await llm.generateStructured({ ...request, minReasoning });
+      return requests[0]!.config;
+    };
+
+    expect((await sentConfig('low', 'medium')).thinkingConfig).toEqual({ thinkingLevel: 'MEDIUM' });
+    // The level in the configuration wins when it is higher than what the task asks for.
+    expect((await sentConfig('high', 'medium')).thinkingConfig).toEqual({ thinkingLevel: 'HIGH' });
+    expect((await sentConfig(undefined, 'medium')).thinkingConfig).toEqual({ thinkingLevel: 'MEDIUM' });
+    // Nothing is forced when neither the configuration nor the task say anything.
+    expect(await sentConfig(undefined)).not.toHaveProperty('thinkingConfig');
+  });
+
+  it('uses the time asked for instead of the usual deadline', async () => {
+    // A client that never answers and rejects when the deadline passes, as the real one does.
+    const client = {
+      models: {
+        generateContent: ({ config }: RecordedRequest & { config: { abortSignal: AbortSignal } }) =>
+          new Promise((_resolve, reject) => {
+            config.abortSignal.addEventListener('abort', () => reject(config.abortSignal.reason));
+          }),
+      },
+    } as unknown as Pick<GoogleGenAI, 'models'>;
+
+    const started = Date.now();
+    await expect(provider(client).generateStructured({ ...request, timeoutMs: 30 })).rejects.toMatchObject({ code: 'LLM_TIMEOUT' });
+    expect(Date.now() - started).toBeLessThan(5_000); // the usual deadline is 30 s
   });
 
   it('reports a blocked or cut-off answer', async () => {

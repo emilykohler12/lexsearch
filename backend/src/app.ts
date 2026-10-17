@@ -18,6 +18,11 @@ import { CasesRepository } from './modules/cases/cases.repository.js';
 import { casesRouter } from './modules/cases/cases.routes.js';
 import { CasesService } from './modules/cases/cases.service.js';
 import { ProceedingAnalysisService } from './modules/cases/proceeding-analysis.service.js';
+import { ContradictionAnalysisService } from './modules/contradictions/contradiction-analysis.service.js';
+import { ContradictionsController } from './modules/contradictions/contradictions.controller.js';
+import { ContradictionsRepository } from './modules/contradictions/contradictions.repository.js';
+import { contradictionsRouter } from './modules/contradictions/contradictions.routes.js';
+import { ContradictionsService } from './modules/contradictions/contradictions.service.js';
 import { ClientsController } from './modules/clients/clients.controller.js';
 import { ClientsRepository } from './modules/clients/clients.repository.js';
 import { clientsRouter } from './modules/clients/clients.routes.js';
@@ -74,9 +79,10 @@ export function createApp(deps: AppDeps) {
   const { db, storage, embeddings, ocr, llm, logger } = deps;
 
   const documentsRepository = new DocumentsRepository(db);
+  const casesRepository = new CasesRepository(db);
   const ingestion = new IngestionService({ repository: documentsRepository, storage, embeddings, ocr, logger });
   const queue = new IngestionQueue((id) => ingestion.process(id), logger);
-  const documentsService = new DocumentsService({ repository: documentsRepository, storage, queue });
+  const documentsService = new DocumentsService({ repository: documentsRepository, storage, queue, cases: casesRepository });
   const interactionsRepository = new InteractionsRepository(db);
   const ragService = new RagService({
     repository: new RagRepository(db),
@@ -92,7 +98,6 @@ export function createApp(deps: AppDeps) {
     interactions: interactionsRepository,
     logger,
   });
-  const casesRepository = new CasesRepository(db);
   const notificationsRepository = new NotificationsRepository(db);
   const deadlinesRepository = new DeadlinesRepository(db);
   const calendarService = new CalendarService({
@@ -129,11 +134,27 @@ export function createApp(deps: AppDeps) {
     logger,
   });
   const notificationsService = new NotificationsService({ repository: notificationsRepository, watcher: deadlineWatcher });
+  const documentTextReader = new DocumentTextReader({ repository: documentsRepository, storage, ocr });
+  const contradictionsRepository = new ContradictionsRepository(db);
+  const contradictionsService = new ContradictionsService({
+    repository: contradictionsRepository,
+    cases: casesRepository,
+    documents: documentsRepository,
+  });
+  const contradictionAnalysis = new ContradictionAnalysisService({
+    cases: casesRepository,
+    documents: documentsRepository,
+    reader: documentTextReader,
+    contradictions: contradictionsRepository,
+    llm,
+    interactions: interactionsRepository,
+    logger,
+  });
   const draftsService = new DraftsService({
     repository: new DraftsRepository(db),
     documents: documentsRepository,
     clients: clientsRepository,
-    reader: new DocumentTextReader({ repository: documentsRepository, storage, ocr }),
+    reader: documentTextReader,
     rag: ragService,
     llm,
     interactions: interactionsRepository,
@@ -207,6 +228,7 @@ export function createApp(deps: AppDeps) {
       maxUploadBytes: deps.maxUploadMb * 1024 * 1024,
     }),
   );
+  app.use('/api/cases', contradictionsRouter(new ContradictionsController(contradictionsService, contradictionAnalysis)));
   app.use('/api/notifications', notificationsRouter(new NotificationsController(notificationsService)));
   app.use('/api/drafts', draftsRouter(new DraftsController(draftsService)));
   app.use('/api/interactions', interactionsRouter(new InteractionsController(interactionsRepository)));

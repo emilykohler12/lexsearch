@@ -2,6 +2,7 @@
 // Fase 1: biblioteca de documentos + fragmentos (RAG) + registro de interacciones con la IA.
 // Fase 2: borradores. Fase 3: clientes. Fase 4: plazos, días inhábiles y avisos.
 // Fase 5: expedientes y actuaciones (la línea de tiempo).
+// Fase 6: documentos de un expediente y contradicciones entre pruebas.
 
 generator client {
   provider            = "prisma-client"
@@ -21,6 +22,7 @@ enum DocumentCategory {
   MODELO // modelos propios de contratos y escritos
   ESCRITO // escritos presentados en expedientes
   OTRO
+  PRUEBA // pruebas de un expediente: testimonios, contratos, informes, recibos
 }
 
 enum DocumentStatus {
@@ -56,9 +58,13 @@ model Document {
   drafts         Draft[]
   /// Actuaciones de expedientes que tienen este documento como respaldo.
   proceedings    Proceeding[]
+  /// Expediente al que pertenece (una prueba, un escrito); nulo si es de la biblioteca general. Si se borra el expediente, el documento se conserva.
+  caseId         String?          @map("case_id") @db.Uuid
+  case           Case?            @relation(fields: [caseId], references: [id], onDelete: SetNull)
 
   @@index([category])
   @@index([status])
+  @@index([caseId])
   @@map("documents")
 }
 
@@ -259,9 +265,11 @@ model Case {
   notes        String       @default("")
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
-  clients      CaseClient[]
-  proceedings  Proceeding[]
-  deadlines    Deadline[]
+  clients        CaseClient[]
+  proceedings    Proceeding[]
+  deadlines      Deadline[]
+  documents      Document[]
+  contradictions Contradiction[]
 
   @@index([status, updatedAt])
   @@map("cases")
@@ -306,4 +314,28 @@ model Proceeding {
   @@index([caseId, date])
   @@index([documentId])
   @@map("proceedings")
+}
+
+/// Contradicción entre las pruebas de un expediente (Fase 6): la propuso la IA al comparar sus documentos
+/// y el abogado la confirmó.
+model Contradiction {
+  id          String   @id @default(uuid()) @db.Uuid
+  caseId      String   @map("case_id") @db.Uuid
+  /// FECHA, MONTO, DECLARACION u OTRO (ver contradictions.schemas.ts).
+  kind        String
+  /// DIRECTA (las afirmaciones son claramente incompatibles) o POSIBLE (el abogado tiene que revisarla).
+  confidence  String
+  title       String
+  explanation String
+  /// Las afirmaciones que chocan: [{ documentId, documentTitle, quote, quoteVerified }]. El título se guarda
+  /// tal como era: si el documento se renombra o se borra, el hallazgo se sigue entendiendo.
+  statements  Json
+  /// Observaciones del abogado.
+  note        String   @default("")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, createdAt])
+  @@map("contradictions")
 }
