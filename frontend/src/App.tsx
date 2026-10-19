@@ -16,6 +16,10 @@ import { DraftsPage } from './pages/DraftsPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LibraryPage } from './pages/LibraryPage';
 import { NonWorkingDaysPage } from './pages/NonWorkingDaysPage';
+import { NormativaAlertsPage } from './pages/NormativaAlertsPage';
+import { NormativaBulletinPage } from './pages/NormativaBulletinPage';
+import { NormativaLayoutPage } from './pages/NormativaLayoutPage';
+import { NormativaTopicsPage } from './pages/NormativaTopicsPage';
 import { PlazosPage } from './pages/PlazosPage';
 
 function NotFound() {
@@ -54,6 +58,15 @@ const router = createBrowserRouter([
       { path: 'plazos/nuevo', element: <DeadlineEditorPage /> },
       { path: 'plazos/inhabiles', element: <NonWorkingDaysPage /> },
       { path: 'plazos/:id', element: <DeadlineEditorPage /> },
+      {
+        path: 'normativa',
+        element: <NormativaLayoutPage />,
+        children: [
+          { index: true, element: <NormativaAlertsPage /> },
+          { path: 'boletin', element: <NormativaBulletinPage /> },
+          { path: 'temas', element: <NormativaTopicsPage /> },
+        ],
+      },
       { path: 'borradores', element: <DraftsPage /> },
       { path: 'borradores/:id', element: <DraftDetailPage /> },
       { path: 'biblioteca', element: <LibraryPage /> },

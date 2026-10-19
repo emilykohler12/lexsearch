@@ -8,9 +8,9 @@ import { FileStorage } from '../../src/lib/file-storage.js';
 import { logger } from '../../src/lib/logger.js';
 import { createPrismaClient } from '../../src/lib/prisma.js';
 import type { LlmProvider } from '../../src/modules/llm/llm-provider.js';
-import { FakeEmbeddingProvider, FakeOcrEngine } from './fakes.js';
+import { FakeEmbeddingProvider, FakeNormativeSource, FakeOcrEngine } from './fakes.js';
 
-export async function createTestApp(options: { llm?: LlmProvider | null } = {}) {
+export async function createTestApp(options: { llm?: LlmProvider | null; now?: () => Date; provincial?: boolean } = {}) {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl?.includes('_test')) throw new Error('Integration tests must run against the test database');
 
@@ -19,8 +19,10 @@ export async function createTestApp(options: { llm?: LlmProvider | null } = {}) 
   const storage = new FileStorage(storageRoot);
   await storage.init();
   const ocr = new FakeOcrEngine();
+  const normativeSource = new FakeNormativeSource();
+  const provincialSource = new FakeNormativeSource({ id: 'BO_MISIONES', label: 'Boletín Oficial de Misiones (de prueba)', shortLabel: 'Misiones' });
 
-  const { app, queue, deadlineWatcher } = createApp({
+  const { app, queue, deadlineWatcher, normativeWatcher } = createApp({
     db,
     storage,
     embeddings: new FakeEmbeddingProvider(),
@@ -29,6 +31,11 @@ export async function createTestApp(options: { llm?: LlmProvider | null } = {}) 
     logger,
     corsOrigin: 'http://localhost:5180',
     maxUploadMb: 5,
+    // Only the national bulletin, unless the test asks for the provincial one too.
+    normativeSources: options.provincial ? [normativeSource, provincialSource] : [normativeSource],
+    // The tests run the checks themselves, when and as they want.
+    normativeAutoRun: false,
+    ...(options.now && { now: options.now }),
   });
 
   return {
@@ -39,10 +46,20 @@ export async function createTestApp(options: { llm?: LlmProvider | null } = {}) 
     ocr,
     /** The check that warns about deadlines; tests call it with the date they want to simulate. */
     watcher: deadlineWatcher,
+    /** The bulletins the normative check reads (the provincial one only with `provincial: true`), and the check itself. */
+    normativeSource,
+    provincialSource,
+    normativeWatcher,
     async reset() {
       await queue.idle();
       ocr.text = '';
       ocr.calls = 0;
+      normativeSource.reset();
+      provincialSource.reset();
+      await db.normativeAlert.deleteMany();
+      await db.normativeItem.deleteMany();
+      await db.normativeTopic.deleteMany();
+      await db.normativeRun.deleteMany();
       await db.draft.deleteMany();
       await db.notification.deleteMany();
       await db.deadline.deleteMany();
@@ -53,6 +70,7 @@ export async function createTestApp(options: { llm?: LlmProvider | null } = {}) 
       await db.document.deleteMany();
     },
     async close() {
+      normativeWatcher.stop();
       await queue.idle();
       await db.$disconnect();
       await rm(storageRoot, { recursive: true, force: true });

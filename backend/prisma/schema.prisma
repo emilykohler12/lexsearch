@@ -3,6 +3,7 @@
 // Fase 2: borradores. Fase 3: clientes. Fase 4: plazos, días inhábiles y avisos.
 // Fase 5: expedientes y actuaciones (la línea de tiempo).
 // Fase 6: documentos de un expediente y contradicciones entre pruebas.
+// Fase 7: normas del Boletín Oficial, temas que sigue el abogado y alertas.
 
 generator client {
   provider            = "prisma-client"
@@ -231,7 +232,7 @@ model NonWorkingDay {
   @@map("non_working_days")
 }
 
-/// Avisos generados por el sistema: hoy, plazos por vencer; más adelante, novedades normativas.
+/// Avisos de plazos por vencer. Las novedades normativas tienen sus propias alertas (NormativeAlert).
 model Notification {
   id         String    @id @default(uuid()) @db.Uuid
   /// DEADLINE_SOON_3, DEADLINE_SOON_1, DEADLINE_TODAY o DEADLINE_OVERDUE.
@@ -338,4 +339,101 @@ model Contradiction {
 
   @@index([caseId, createdAt])
   @@map("contradictions")
+}
+
+/// Norma publicada en un boletín oficial (Fase 7). Se guarda lo justo para mostrarla y para saber si ya se revisó.
+model NormativeItem {
+  id               String           @id @default(uuid()) @db.Uuid
+  /// De dónde viene: BO_NACIONAL o BO_MISIONES (ver normative/sources).
+  source           String
+  /// Identificador del aviso en esa fuente (el número que figura en su dirección).
+  externalId       String           @map("external_id")
+  publishedOn      DateTime         @map("published_on") @db.Date
+  /// Rubro del boletín: RESOLUCIONES, DISPOSICIONES, DECRETOS...
+  category         String
+  organism         String
+  /// Resolución, Decreto, Disposición... (el número va aparte).
+  kind             String
+  number           String           @default("")
+  /// Código técnico de la norma (RESOL-2026-286-APN-BNMM#MCH).
+  reference        String           @default("")
+  url              String
+  /// Primeros caracteres del texto: lo que se muestra y contra lo que se verifican las frases citadas.
+  text             String           @default("")
+  /// Qué dice la norma según la IA (una oración); vacío si nunca coincidió con un tema.
+  summary          String           @default("")
+  /// SKIPPED (rubro que no se analiza), PENDING (falta leer su texto), DONE o FAILED (no se pudo leer).
+  detailStatus     String           @default("PENDING") @map("detail_status")
+  detailAttempts   Int              @default(0) @map("detail_attempts")
+  /// Temas contra los que ya se revisó: un tema nuevo se revisa solo contra las normas recientes que le faltan.
+  analyzedTopicIds String[]         @default([]) @map("analyzed_topic_ids")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  alerts           NormativeAlert[]
+
+  @@unique([source, externalId])
+  @@index([publishedOn])
+  @@index([detailStatus])
+  @@map("normative_items")
+}
+
+/// Lo que el abogado quiere seguir: un área de práctica entera o un tema propio con palabras clave.
+model NormativeTopic {
+  id           String           @id @default(uuid()) @db.Uuid
+  name         String
+  /// Área de práctica (LABORAL, CIVIL...; ver clients.schemas.ts) cuando el tema es un área entera; nula si es un tema propio.
+  practiceArea String?          @unique @map("practice_area")
+  keywords     String[]         @default([])
+  /// Qué incluye el tema, para que la IA lo entienda mejor (opcional).
+  description  String           @default("")
+  active       Boolean          @default(true)
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+  alerts       NormativeAlert[]
+
+  @@map("normative_topics")
+}
+
+/// Aviso de que una norma nueva toca un tema que el abogado sigue. La propone la IA (o las palabras clave si la IA
+/// no está configurada) y el abogado la ve, la deja o la descarta.
+model NormativeAlert {
+  id            String         @id @default(uuid()) @db.Uuid
+  itemId        String         @map("item_id") @db.Uuid
+  topicId       String         @map("topic_id") @db.Uuid
+  /// ALTA (regula el tema directamente) o MEDIA (podría afectarlo).
+  relevance     String
+  /// AI o KEYWORDS (coincidencia por palabras clave, cuando la IA no está configurada).
+  origin        String         @default("AI")
+  /// Por qué le importa al tema, en una oración.
+  reason        String
+  /// Frase de la norma que lo respalda, tal como figura en ella.
+  quote         String         @default("")
+  quoteVerified Boolean        @default(false) @map("quote_verified")
+  /// NEW (sin ver), SEEN (vista) o DISMISSED (descartada).
+  status        String         @default("NEW")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  item          NormativeItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  topic         NormativeTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, topicId])
+  @@index([status, createdAt])
+  @@map("normative_alerts")
+}
+
+/// Cada revisión de una edición del boletín: sirve para no repetirla y para mostrar si falló.
+model NormativeRun {
+  id            String   @id @default(uuid()) @db.Uuid
+  source        String
+  editionDate   DateTime @map("edition_date") @db.Date
+  /// OK, PARTIAL (algo no se pudo leer o analizar: se reintenta), ERROR (no se pudo leer el boletín) o NO_EDITION.
+  status        String
+  itemsFound    Int      @default(0) @map("items_found")
+  alertsCreated Int      @default(0) @map("alerts_created")
+  error         String   @default("")
+  startedAt     DateTime @map("started_at")
+  finishedAt    DateTime @map("finished_at")
+
+  @@unique([source, editionDate])
+  @@index([finishedAt])
+  @@map("normative_runs")
 }

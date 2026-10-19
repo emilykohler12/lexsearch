@@ -41,4 +41,10 @@ export class ClientsRepository {
   async delete(id: string): Promise<void> {
     await this.db.client.delete({ where: { id } });
   }
+
+  /** How many clients each area of practice has (clients without an area aren't counted). */
+  async countByPracticeArea(): Promise<Map<string, number>> {
+    const rows = await this.db.client.groupBy({ by: ['practiceArea'], where: { practiceArea: { not: null } }, _count: { _all: true } });
+    return new Map(rows.flatMap((row) => (row.practiceArea ? [[row.practiceArea, row._count._all] as const] : [])));
+  }
 }

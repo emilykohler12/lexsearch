@@ -78,3 +78,45 @@ export function locateQuote(content: string, quote: string): QuoteMatch | null {
   }
   return null;
 }
+
+/** Letters and digits only, lowercase and without accents, plus where each one is in the original. */
+function lettersAndDigits(text: string): { folded: string; map: number[] } {
+  let folded = '';
+  const map: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    const base = text[i]!.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+    for (const char of base) {
+      // The ordinal signs (º, ª) count as letters for Unicode but are written as «°» just as often: they are left out.
+      if (/[\p{L}\p{N}]/u.test(char) && char !== 'º' && char !== 'ª') {
+        folded += char;
+        map.push(i);
+      }
+    }
+  }
+  return { folded, map };
+}
+
+/** A phrase shorter than this (in letters and digits) says too little to prove anything. */
+const MIN_LOOSE_CHARS = 15;
+
+/**
+ * Like locateQuote, but ignoring everything that is not a letter or a digit (punctuation, hyphens, the
+ * difference between «Nº» and «N°», extra spaces) and the accents. For norms full of file numbers and
+ * codes, where a model copying «EX-2026-1- -APN-X» tends to tidy it up. What it returns is still the
+ * exact stretch of the original: the same words in the same order, nothing else.
+ */
+export function locateQuoteLoosely(content: string, quote: string): QuoteMatch | null {
+  const pieces = cleanQuote(quote)
+    .split(/\s*(?:\.\.\.|…)\s*/u)
+    .map((piece) => lettersAndDigits(piece).folded)
+    .filter((piece) => piece.length >= MIN_LOOSE_CHARS)
+    .sort((a, b) => b.length - a.length);
+  if (pieces.length === 0) return null;
+
+  const source = lettersAndDigits(content);
+  for (const piece of pieces) {
+    const at = source.folded.indexOf(piece);
+    if (at >= 0) return { start: source.map[at]!, end: source.map[at + piece.length - 1]! + 1 };
+  }
+  return null;
+}

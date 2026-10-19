@@ -102,6 +102,16 @@ export class CasesRepository {
     return (await this.db.case.count({ where: { id } })) > 0;
   }
 
+  /** How many expedientes in progress or paused (not closed) each area of practice has. */
+  async countOpenByPracticeArea(): Promise<Map<string, number>> {
+    const rows = await this.db.case.groupBy({
+      by: ['practiceArea'],
+      where: { practiceArea: { not: null }, status: { not: 'CLOSED' } },
+      _count: { _all: true },
+    });
+    return new Map(rows.flatMap((row) => (row.practiceArea ? [[row.practiceArea, row._count._all] as const] : [])));
+  }
+
   /** `clientIds` replaces the whole list of clients when given. */
   update(id: string, changes: CaseChanges, clientIds?: string[]): Promise<CaseRow> {
     return this.db.case.update({

@@ -495,3 +495,107 @@ export interface Contradiction {
   createdAt: string;
   updatedAt: string;
 }
+
+// ── Normativa (Fase 7) ──────────────────────────────────────────────────────
+
+export type NormativeRelevance = 'ALTA' | 'MEDIA';
+export type NormativeAlertStatus = 'NEW' | 'SEEN' | 'DISMISSED';
+
+/** A bulletin that is read: the national one, the one of Misiones. */
+export interface NormativeSourceInfo {
+  /** BO_NACIONAL, BO_MISIONES. */
+  id: string;
+  /** «Boletín Oficial de la Provincia de Misiones». */
+  label: string;
+  /** «Nación», «Misiones». */
+  shortLabel: string;
+}
+
+export interface NormativeSourceStatus extends NormativeSourceInfo {
+  lastCheckedAt: string | null;
+  /** Date (AAAA-MM-DD) of the newest edition of this bulletin that was read. */
+  lastEditionDate: string | null;
+  /** What went wrong in the last check of this bulletin; null when it went well. */
+  lastError: string | null;
+  stale: boolean;
+}
+
+export interface NormativeStatus {
+  running: boolean;
+  aiConfigured: boolean;
+  /** Topics being followed (the active ones). */
+  topicCount: number;
+  lastCheckedAt: string | null;
+  /** The last check of some bulletin is old: the screen asks for a new one when it opens. */
+  stale: boolean;
+  sources: NormativeSourceStatus[];
+}
+
+/** A norm published in a bulletin. */
+export interface Norm {
+  id: string;
+  /** The bulletin it comes from (BO_NACIONAL, BO_MISIONES) and how it is shown («Nación», «Misiones»). */
+  source: string;
+  sourceLabel: string;
+  publishedOn: string;
+  category: string;
+  organism: string;
+  kind: string;
+  number: string;
+  reference: string;
+  url: string;
+  /** What the norm says according to the AI; empty when it didn't match any topic. */
+  summary: string;
+}
+
+export interface NormativeAlert {
+  id: string;
+  status: NormativeAlertStatus;
+  relevance: NormativeRelevance;
+  /** AI, or KEYWORDS when it was matched by words only (no AI configured). */
+  origin: 'AI' | 'KEYWORDS';
+  reason: string;
+  /** The norm's own wording; empty when the phrase couldn't be found in it. */
+  quote: string;
+  quoteVerified: boolean;
+  createdAt: string;
+  topic: { id: string; name: string; practiceArea: PracticeArea | null };
+  item: Norm;
+  /** The clients and open expedientes of the topic's area; null for a topic of its own. */
+  affected: { clients: number; cases: number } | null;
+}
+
+export interface NormativeItem extends Norm {
+  /** Its text was read and checked against the topics. */
+  read: boolean;
+  alertCount: number;
+}
+
+export interface NormativeEdition {
+  /** The bulletin shown, and the ones that can be chosen. */
+  source: string;
+  sources: NormativeSourceInfo[];
+  /** The edition shown (AAAA-MM-DD); null when no edition of this bulletin has been read yet. */
+  date: string | null;
+  /** The editions of this bulletin that have norms stored, newest first. */
+  dates: string[];
+  categories: string[];
+  items: NormativeItem[];
+}
+
+export interface NormativeTopic {
+  id: string;
+  name: string;
+  practiceArea: PracticeArea | null;
+  keywords: string[];
+  description: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface NormativeTopicInput {
+  practiceArea?: PracticeArea;
+  name?: string;
+  keywords?: string[];
+  description?: string;
+}

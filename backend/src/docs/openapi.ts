@@ -10,6 +10,7 @@ import {
 } from '../modules/cases/cases.schemas.js';
 import { analyzeNotesSchema, createClientSchema, updateClientSchema } from '../modules/clients/clients.schemas.js';
 import { analyzeSchema, createFindingsBatchSchema, updateFindingSchema } from '../modules/contradictions/contradictions.schemas.js';
+import { createTopicSchema, updateAlertSchema, updateTopicSchema } from '../modules/normative/normative.schemas.js';
 import {
   calculateSchema,
   createDeadlineSchema,
@@ -64,6 +65,7 @@ export function buildOpenApiDocument() {
       { name: 'Plazos', description: 'Plazos procesales y contractuales: vencimientos calculados con el calendario, y lectura de cédulas y resoluciones' },
       { name: 'Calendario', description: 'Feriados nacionales (calculados) y días inhábiles propios (feria judicial, asuetos)' },
       { name: 'Avisos', description: 'Avisos generados por el sistema (plazos por vencer)' },
+      { name: 'Normativa', description: 'Vigía normativo: normas nuevas de los boletines oficiales (Nación y Provincia de Misiones) que tocan las áreas y los temas que el abogado sigue' },
       { name: 'Borradores', description: 'Escritos y contratos redactados por el agente con la biblioteca como referencia' },
       { name: 'Historial', description: 'Interacciones registradas con los módulos de IA' },
     ],
@@ -339,6 +341,78 @@ export function buildOpenApiDocument() {
           responses: { 200: { description: 'OK' }, 400: errorResponse, 404: errorResponse },
         },
         delete: { tags: ['Contradicciones'], summary: 'Eliminar una contradicción', responses: { 204: { description: 'Eliminada' }, 404: errorResponse } },
+      },
+      '/api/normativa/status': {
+        get: {
+          tags: ['Normativa'],
+          summary: 'Estado del vigía: si está revisando y, por cada boletín (Nación, Misiones), la última revisión, la última edición leída y si falló',
+          responses: { 200: { description: 'OK (stale = la última revisión de algún boletín es vieja: conviene pedir una nueva)' } },
+        },
+      },
+      '/api/normativa/refresh': {
+        post: {
+          tags: ['Normativa'],
+          summary: 'Revisar los boletines oficiales ahora (en segundo plano)',
+          description:
+            'Lee las últimas ediciones del Boletín Oficial de la Nación (primera sección) y del de la Provincia de Misiones, el texto de las normas nuevas y las compara con los temas que se siguen. Responde enseguida; el avance se ve en el estado. Hasta 6 por cada 10 minutos.',
+          responses: { 202: { description: 'La revisión empezó (o ya estaba en marcha)' }, 429: errorResponse },
+        },
+      },
+      '/api/normativa/alerts': {
+        get: {
+          tags: ['Normativa'],
+          summary: 'Alertas: normas nuevas que tocan un tema que se sigue (las más recientes primero)',
+          parameters: [{ name: 'status', in: 'query', description: 'ACTIVE (nuevas y vistas; por defecto), NEW, SEEN o DISMISSED', schema: { type: 'string' } }],
+          responses: { 200: { description: 'Cada alerta trae la norma, el tema, por qué importa, la frase que lo respalda y a cuántos clientes y expedientes del área alcanza' } },
+        },
+      },
+      '/api/normativa/alerts/unread-count': {
+        get: { tags: ['Normativa'], summary: 'Cantidad de alertas sin ver', responses: { 200: { description: 'OK' } } },
+      },
+      '/api/normativa/alerts/read-all': {
+        post: { tags: ['Normativa'], summary: 'Marcar como vistas todas las alertas nuevas', responses: { 204: { description: 'Hecho' } } },
+      },
+      '/api/normativa/alerts/{id}': {
+        parameters: [idParam],
+        patch: {
+          tags: ['Normativa'],
+          summary: 'Marcar una alerta como nueva, vista o descartada',
+          requestBody: { required: true, ...json(jsonSchema(updateAlertSchema)) },
+          responses: { 200: { description: 'OK' }, 400: errorResponse, 404: errorResponse },
+        },
+      },
+      '/api/normativa/items': {
+        get: {
+          tags: ['Normativa'],
+          summary: 'Normas de una edición de un boletín oficial (la más reciente guardada si no se indica fecha; el nacional si no se indica boletín)',
+          parameters: [
+            { name: 'source', in: 'query', description: 'Boletín: BO_NACIONAL o BO_MISIONES', schema: { type: 'string' } },
+            { name: 'date', in: 'query', description: 'AAAA-MM-DD', schema: { type: 'string' } },
+            { name: 'q', in: 'query', description: 'Busca en el organismo, el tipo, el número, el resumen y el texto', schema: { type: 'string' } },
+            { name: 'category', in: 'query', description: 'Rubro: RESOLUCIONES, DISPOSICIONES...', schema: { type: 'string' } },
+          ],
+          responses: { 200: { description: 'Las normas, los boletines disponibles, las fechas con ediciones guardadas y los rubros de la edición' }, 400: errorResponse },
+        },
+      },
+      '/api/normativa/topics': {
+        get: { tags: ['Normativa'], summary: 'Temas que se siguen (áreas de práctica enteras o temas propios con palabras clave)', responses: { 200: { description: 'OK' } } },
+        post: {
+          tags: ['Normativa'],
+          summary: 'Seguir un área de práctica o un tema propio',
+          description: 'Con practiceArea se sigue el área entera; sin ella hace falta un nombre y al menos una palabra clave. Al crearlo se revisan también las normas de los últimos días.',
+          requestBody: { required: true, ...json(jsonSchema(createTopicSchema)) },
+          responses: { 201: { description: 'Creado' }, 400: errorResponse, 409: errorResponse },
+        },
+      },
+      '/api/normativa/topics/{id}': {
+        parameters: [idParam],
+        patch: {
+          tags: ['Normativa'],
+          summary: 'Editar un tema o pausarlo',
+          requestBody: { required: true, ...json(jsonSchema(updateTopicSchema)) },
+          responses: { 200: { description: 'OK' }, 400: errorResponse, 404: errorResponse },
+        },
+        delete: { tags: ['Normativa'], summary: 'Dejar de seguir un tema (se borran sus alertas)', responses: { 204: { description: 'Eliminado' }, 404: errorResponse } },
       },
       '/api/deadlines': {
         get: {

@@ -9,6 +9,7 @@ import type {
   DeadlineStatus,
   DocumentCategory,
   FindingInput,
+  NormativeAlertStatus,
   ProceedingInput,
   SearchFilters,
 } from './types';
@@ -40,6 +41,14 @@ export const queryKeys = {
   dueDate: (term: Pick<DeadlineInput, 'notificationDate' | 'days' | 'dayType'>) => ['deadlines', 'due-date', term] as const,
   calendar: (year: number) => ['calendar', year] as const,
   notifications: ['notifications'] as const,
+  // Everything about the normative watch starts with 'normative': one invalidation refreshes alerts, norms and counts.
+  normative: ['normative'] as const,
+  normativeStatus: ['normative', 'status'] as const,
+  normativeAlerts: (status: string) => ['normative', 'alerts', status] as const,
+  normativeUnread: ['normative', 'unread'] as const,
+  normativeItems: (filters: { source?: string | undefined; date?: string | undefined; q?: string | undefined; category?: string | undefined }) =>
+    ['normative', 'items', filters] as const,
+  normativeTopics: ['normative', 'topics'] as const,
 };
 
 export function useHealth() {
@@ -475,4 +484,86 @@ export function useMarkAllNotificationsRead() {
     mutationFn: api.markAllNotificationsRead,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.notifications }),
   });
+}
+
+// ── Normativa ───────────────────────────────────────────────────────────────
+
+/** Where the watch is: followed closely while it is checking the bulletin, calmly otherwise. */
+export function useNormativeStatus() {
+  return useQuery({
+    queryKey: queryKeys.normativeStatus,
+    queryFn: api.normativeStatus,
+    refetchInterval: (query) => (query.state.data?.running ? 2_000 : 60_000),
+    retry: false,
+  });
+}
+
+export function useRefreshNormative() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.refreshNormative,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.normativeStatus }),
+  });
+}
+
+export function useNormativeAlerts(status: 'ACTIVE' | NormativeAlertStatus) {
+  return useQuery({ queryKey: queryKeys.normativeAlerts(status), queryFn: () => api.listNormativeAlerts(status) });
+}
+
+/** Alerts not seen yet; the menu shows them as a red badge. */
+export function useNormativeUnread() {
+  return useQuery({ queryKey: queryKeys.normativeUnread, queryFn: api.normativeUnreadCount, refetchInterval: 60_000, retry: false });
+}
+
+export function useUpdateNormativeAlert() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: NormativeAlertStatus }) => api.updateNormativeAlert(id, status),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.normative }),
+  });
+}
+
+export function useMarkAllNormativeSeen() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.markAllNormativeSeen,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.normative }),
+  });
+}
+
+export function useNormativeItems(filters: { source?: string | undefined; date?: string | undefined; q?: string | undefined; category?: string | undefined }) {
+  return useQuery({
+    queryKey: queryKeys.normativeItems(filters),
+    queryFn: () => api.listNormativeItems(filters),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useNormativeTopics() {
+  return useQuery({ queryKey: queryKeys.normativeTopics, queryFn: api.listNormativeTopics });
+}
+
+/** A topic that changes also changes what is checked: everything normative is refreshed. */
+function useRefreshNormativeData() {
+  const queryClient = useQueryClient();
+  return () => queryClient.invalidateQueries({ queryKey: queryKeys.normative });
+}
+
+export function useCreateNormativeTopic() {
+  const refresh = useRefreshNormativeData();
+  return useMutation({ mutationFn: api.createNormativeTopic, onSuccess: refresh });
+}
+
+export function useUpdateNormativeTopic() {
+  const refresh = useRefreshNormativeData();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; name?: string; keywords?: string[]; description?: string; active?: boolean }) =>
+      api.updateNormativeTopic(id, data),
+    onSuccess: refresh,
+  });
+}
+
+export function useDeleteNormativeTopic() {
+  const refresh = useRefreshNormativeData();
+  return useMutation({ mutationFn: api.deleteNormativeTopic, onSuccess: refresh });
 }

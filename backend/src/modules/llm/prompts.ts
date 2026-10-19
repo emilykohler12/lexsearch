@@ -14,6 +14,7 @@ export const PROMPT_VERSIONS = {
   deadlineExtraction: 'deadline-extraction.v1',
   proceedingExtraction: 'proceeding-extraction.v1',
   contradictionDetection: 'contradiction-detection.v1',
+  normativeRelevance: 'normative-relevance.v1',
 } as const;
 
 export interface Prompt {

@@ -6,6 +6,8 @@ import { createPrismaClient } from './lib/prisma.js';
 import { EMBEDDING_DIMENSIONS } from './modules/embeddings/embedding-provider.js';
 import { LocalEmbeddingProvider } from './modules/embeddings/local-embedding-provider.js';
 import { GeminiLlmProvider } from './modules/llm/gemini-llm-provider.js';
+import { BoletinOficialSource } from './modules/normative/sources/boletin-oficial.js';
+import { BoletinOficialMisionesSource } from './modules/normative/sources/misiones.js';
 import { TesseractOcrEngine } from './modules/ocr/tesseract-ocr-engine.js';
 
 const db = createPrismaClient(env.DATABASE_URL);
@@ -32,7 +34,7 @@ const llm = env.GEMINI_API_KEY
     })
   : null;
 
-const { app, queue, documentsService, deadlineWatcher } = createApp({
+const { app, queue, documentsService, deadlineWatcher, normativeWatcher } = createApp({
   db,
   storage,
   embeddings,
@@ -41,6 +43,7 @@ const { app, queue, documentsService, deadlineWatcher } = createApp({
   logger,
   corsOrigin: env.CORS_ORIGIN,
   maxUploadMb: env.MAX_UPLOAD_MB,
+  normativeSources: [new BoletinOficialSource(), new BoletinOficialMisionesSource()],
 });
 
 const server = app.listen(env.PORT, env.HOST, (error?: Error) => {
@@ -73,6 +76,9 @@ ocr.warmUp().catch((error: unknown) => {
 // Warns about deadlines that are about to expire: now, and then every hour.
 const stopDeadlineWatcher = deadlineWatcher.start();
 
+// Reads the Boletín Oficial a little after starting (if the last check is old) and then every three hours.
+const stopNormativeWatcher = normativeWatcher.start();
+
 documentsService
   .resumeUnfinished()
   .then((count) => {
@@ -87,6 +93,7 @@ async function shutdown(signal: string) {
   logger.info({ signal }, 'Shutting down');
   server.close();
   stopDeadlineWatcher();
+  stopNormativeWatcher();
   // Documents interrupted here stay PENDING/PROCESSING and are resumed on the next start.
   await Promise.race([queue.idle(), new Promise((resolve) => setTimeout(resolve, 5_000))]);
   await ocr.close();

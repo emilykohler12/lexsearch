@@ -27,6 +27,12 @@ import type {
   InteractionDetail,
   InteractionSummary,
   LibraryDocument,
+  NormativeAlert,
+  NormativeAlertStatus,
+  NormativeEdition,
+  NormativeStatus,
+  NormativeTopic,
+  NormativeTopicInput,
   ProceedingInput,
   SearchFilters,
   SearchHit,
@@ -256,4 +262,39 @@ export const api = {
   markNotificationRead: (id: string) => request<void>(`/notifications/${id}/read`, { method: 'POST' }),
 
   markAllNotificationsRead: () => request<void>('/notifications/read-all', { method: 'POST' }),
+
+  // Normativa: el vigía de los boletines oficiales (Nación y Misiones)
+  normativeStatus: () => request<NormativeStatus>('/normativa/status'),
+
+  refreshNormative: () => request<{ running: boolean }>('/normativa/refresh', { method: 'POST' }),
+
+  listNormativeAlerts: (status: 'ACTIVE' | NormativeAlertStatus) =>
+    request<{ alerts: NormativeAlert[] }>(`/normativa/alerts?status=${status}`).then((r) => r.alerts),
+
+  normativeUnreadCount: () => request<{ count: number }>('/normativa/alerts/unread-count').then((r) => r.count),
+
+  updateNormativeAlert: (id: string, status: NormativeAlertStatus) =>
+    request<{ alert: NormativeAlert }>(`/normativa/alerts/${id}`, { method: 'PATCH', body: json({ status }) }).then((r) => r.alert),
+
+  markAllNormativeSeen: () => request<void>('/normativa/alerts/read-all', { method: 'POST' }),
+
+  listNormativeItems: (filters: { source?: string | undefined; date?: string | undefined; q?: string | undefined; category?: string | undefined }) => {
+    const params = new URLSearchParams();
+    if (filters.source) params.set('source', filters.source);
+    if (filters.date) params.set('date', filters.date);
+    if (filters.q) params.set('q', filters.q);
+    if (filters.category) params.set('category', filters.category);
+    const query = params.toString();
+    return request<NormativeEdition>(`/normativa/items${query ? `?${query}` : ''}`);
+  },
+
+  listNormativeTopics: () => request<{ topics: NormativeTopic[] }>('/normativa/topics').then((r) => r.topics),
+
+  createNormativeTopic: (data: NormativeTopicInput) =>
+    request<{ topic: NormativeTopic }>('/normativa/topics', { method: 'POST', body: json(data) }).then((r) => r.topic),
+
+  updateNormativeTopic: (id: string, data: { name?: string; keywords?: string[]; description?: string; active?: boolean }) =>
+    request<{ topic: NormativeTopic }>(`/normativa/topics/${id}`, { method: 'PATCH', body: json(data) }).then((r) => r.topic),
+
+  deleteNormativeTopic: (id: string) => request<void>(`/normativa/topics/${id}`, { method: 'DELETE' }),
 };

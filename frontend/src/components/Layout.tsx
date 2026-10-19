@@ -5,20 +5,24 @@ import {
   FolderKanban,
   History,
   MessageSquareText,
+  Newspaper,
   Scale,
   TriangleAlert,
   Users,
   type LucideIcon,
 } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router';
-import { useHealth, useNotifications } from '../api/hooks';
+import { useHealth, useNormativeUnread, useNotifications } from '../api/hooks';
+
+type Badge = 'deadlines' | 'normative';
 
 interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
   end?: boolean;
-  alerts?: boolean;
+  /** Which unread count is shown next to the name as a red badge. */
+  badge?: Badge;
   /** On phones these go in the top bar as icons, to leave room for the names of the others. */
   secondary?: boolean;
 }
@@ -27,7 +31,8 @@ const NAV: NavItem[] = [
   { to: '/', label: 'Consultar', icon: MessageSquareText, end: true },
   { to: '/clientes', label: 'Clientes', icon: Users },
   { to: '/expedientes', label: 'Expedientes', icon: FolderKanban },
-  { to: '/plazos', label: 'Plazos', icon: CalendarClock, alerts: true },
+  { to: '/plazos', label: 'Plazos', icon: CalendarClock, badge: 'deadlines' },
+  { to: '/normativa', label: 'Normativa', icon: Newspaper, badge: 'normative', secondary: true },
   { to: '/borradores', label: 'Borradores', icon: FilePenLine },
   { to: '/biblioteca', label: 'Biblioteca', icon: BookOpen, secondary: true },
   { to: '/historial', label: 'Historial', icon: History, secondary: true },
@@ -61,9 +66,9 @@ function Brand() {
   );
 }
 
-/** Number of warnings the lawyer hasn't read yet (deadlines about to expire or already expired). */
-function useUnreadWarnings(): number {
-  return useNotifications().data?.length ?? 0;
+/** What the lawyer hasn't read yet: deadlines about to expire (or expired) and new norms that touch her topics. */
+function useUnreadCounts(): Record<Badge, number> {
+  return { deadlines: useNotifications().data?.length ?? 0, normative: useNormativeUnread().data ?? 0 };
 }
 
 function WarningsBadge({ count, className = '' }: { count: number; className?: string }) {
@@ -79,7 +84,7 @@ function WarningsBadge({ count, className = '' }: { count: number; className?: s
 }
 
 function DesktopSidebar() {
-  const warnings = useUnreadWarnings();
+  const unread = useUnreadCounts();
   return (
     <aside className="hidden shrink-0 flex-col bg-navy-900 text-white/85 md:sticky md:top-0 md:flex md:h-screen md:w-64">
       <div className="px-5 py-5">
@@ -87,7 +92,7 @@ function DesktopSidebar() {
       </div>
 
       <nav aria-label="Principal" className="flex flex-col gap-1 px-3 pb-3">
-        {NAV.map(({ to, label, icon: Icon, end, alerts }) => (
+        {NAV.map(({ to, label, icon: Icon, end, badge }) => (
           <NavLink
             key={to}
             to={to}
@@ -100,7 +105,7 @@ function DesktopSidebar() {
           >
             <Icon className="size-4" aria-hidden />
             {label}
-            {alerts && <WarningsBadge count={warnings} className="ml-auto" />}
+            {badge && <WarningsBadge count={unread[badge]} className="ml-auto" />}
           </NavLink>
         ))}
       </nav>
@@ -113,13 +118,13 @@ function DesktopSidebar() {
 }
 
 function MobileHeader() {
-  const warnings = useUnreadWarnings();
+  const unread = useUnreadCounts();
   return (
     <header className="sticky top-0 z-20 bg-navy-900 text-white/85 shadow-sm md:hidden">
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         <Brand />
         <nav aria-label="Secundario" className="flex items-center gap-1">
-          {NAV.filter((item) => item.secondary).map(({ to, label, icon: Icon }) => (
+          {NAV.filter((item) => item.secondary).map(({ to, label, icon: Icon, badge }) => (
             <NavLink
               key={to}
               to={to}
@@ -131,14 +136,17 @@ function MobileHeader() {
                 }`
               }
             >
-              <Icon className="size-5" aria-hidden />
+              <span className="relative">
+                <Icon className="size-5" aria-hidden />
+                {badge && <WarningsBadge count={unread[badge]} className="absolute -top-2 left-3" />}
+              </span>
             </NavLink>
           ))}
         </nav>
       </div>
 
       <nav aria-label="Principal" className="grid grid-cols-5 border-t border-white/10">
-        {NAV.filter((item) => !item.secondary).map(({ to, label, icon: Icon, end, alerts }) => (
+        {NAV.filter((item) => !item.secondary).map(({ to, label, icon: Icon, end, badge }) => (
           <NavLink
             key={to}
             to={to}
@@ -151,7 +159,7 @@ function MobileHeader() {
           >
             <span className="relative">
               <Icon className="size-4" aria-hidden />
-              {alerts && <WarningsBadge count={warnings} className="absolute -top-2 left-2.5" />}
+              {badge && <WarningsBadge count={unread[badge]} className="absolute -top-2 left-2.5" />}
             </span>
             <span className="max-w-full truncate">{label}</span>
           </NavLink>

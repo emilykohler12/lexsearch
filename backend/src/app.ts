@@ -49,6 +49,13 @@ import { InteractionsController } from './modules/interactions/interactions.cont
 import { InteractionsRepository } from './modules/interactions/interactions.repository.js';
 import { interactionsRouter } from './modules/interactions/interactions.routes.js';
 import type { LlmProvider } from './modules/llm/llm-provider.js';
+import { NormativeAnalyzer } from './modules/normative/normative-analyzer.js';
+import { NormativeController } from './modules/normative/normative.controller.js';
+import { NormativeRepository } from './modules/normative/normative.repository.js';
+import { normativeRouter } from './modules/normative/normative.routes.js';
+import { NormativeService } from './modules/normative/normative.service.js';
+import { NormativeWatcher } from './modules/normative/normative-watcher.js';
+import type { NormativeSource } from './modules/normative/sources/normative-source.js';
 import { DeadlineWatcher } from './modules/notifications/deadline-watcher.js';
 import { NotificationsController } from './modules/notifications/notifications.controller.js';
 import { NotificationsRepository } from './modules/notifications/notifications.repository.js';
@@ -69,6 +76,12 @@ export interface AppDeps {
   logger: Logger;
   corsOrigin: string;
   maxUploadMb: number;
+  /** Where the norms come from: the national Boletín Oficial and the provincial one (tests pass fakes). */
+  normativeSources: NormativeSource[];
+  /** Start the normative checks by themselves when the topics change. On unless a test needs it quiet. */
+  normativeAutoRun?: boolean;
+  /** Injectable clock for what depends on the date (the normative check). */
+  now?: () => Date;
 }
 
 /**
@@ -150,6 +163,24 @@ export function createApp(deps: AppDeps) {
     interactions: interactionsRepository,
     logger,
   });
+  const normativeRepository = new NormativeRepository(db);
+  const normativeWatcher = new NormativeWatcher({
+    sources: deps.normativeSources,
+    repository: normativeRepository,
+    analyzer: new NormativeAnalyzer({ llm, interactions: interactionsRepository, logger }),
+    logger,
+    ...(deps.now && { now: deps.now }),
+  });
+  const normativeService = new NormativeService({
+    repository: normativeRepository,
+    watcher: normativeWatcher,
+    clients: clientsRepository,
+    cases: casesRepository,
+    sources: deps.normativeSources,
+    aiConfigured: llm !== null,
+    autoRun: deps.normativeAutoRun ?? true,
+    ...(deps.now && { now: deps.now }),
+  });
   const draftsService = new DraftsService({
     repository: new DraftsRepository(db),
     documents: documentsRepository,
@@ -230,11 +261,12 @@ export function createApp(deps: AppDeps) {
   );
   app.use('/api/cases', contradictionsRouter(new ContradictionsController(contradictionsService, contradictionAnalysis)));
   app.use('/api/notifications', notificationsRouter(new NotificationsController(notificationsService)));
+  app.use('/api/normativa', normativeRouter(new NormativeController(normativeService)));
   app.use('/api/drafts', draftsRouter(new DraftsController(draftsService)));
   app.use('/api/interactions', interactionsRouter(new InteractionsController(interactionsRepository)));
 
   app.use(notFoundHandler);
   app.use(errorHandler({ maxUploadMb: deps.maxUploadMb }));
 
-  return { app, queue, documentsService, deadlineWatcher };
+  return { app, queue, documentsService, deadlineWatcher, normativeWatcher };
 }

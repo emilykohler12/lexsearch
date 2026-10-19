@@ -1,7 +1,8 @@
 import { Pencil } from 'lucide-react';
-import { Link, NavLink, Outlet, useParams } from 'react-router';
+import { Link, Outlet, useParams } from 'react-router';
 import { useCase, useContradictions, useDocuments } from '../api/hooks';
 import type { Case, CaseStatus } from '../api/types';
+import { SectionTabs, type SectionTab } from '../components/SectionTabs';
 import { Alert, PracticeAreaBadge, Spinner } from '../components/ui';
 import type { CaseContext } from '../features/cases/case-context';
 import { agoText, CASE_STATUS_LABELS, daysBetween, plural, todayInArgentina } from '../lib/format';
@@ -48,7 +49,7 @@ function CaseShell({ found }: { found: Case }) {
   ].filter(Boolean);
 
   const base = `/expedientes/${found.id}`;
-  const sections: Array<{ to: string; label: string; end?: boolean; count?: number | undefined }> = [
+  const sections: SectionTab[] = [
     { to: base, label: 'Línea de tiempo', end: true },
     { to: `${base}/documentos`, label: 'Documentos', count: documents?.length },
     { to: `${base}/contradicciones`, label: 'Contradicciones', count: contradictions?.length },
@@ -83,29 +84,7 @@ function CaseShell({ found }: { found: Case }) {
         </div>
       </header>
 
-      <nav
-        aria-label="Secciones del expediente"
-        className="-mx-4 overflow-x-auto px-4 shadow-[inset_0_-1px_0_0_var(--color-line)] sm:mx-0 sm:px-0"
-      >
-        <ul className="flex sm:gap-1">
-          {sections.map(({ to, label, end, count }) => (
-            <li key={to} className="shrink-0">
-              <NavLink
-                to={to}
-                end={end}
-                className={({ isActive }) =>
-                  `inline-flex min-h-11 items-center gap-1.5 border-b-2 px-2 text-sm whitespace-nowrap transition-colors sm:px-3 ${
-                    isActive ? 'border-brass-500 font-medium text-ink' : 'border-transparent text-muted hover:text-ink'
-                  }`
-                }
-              >
-                {label}
-                {count !== undefined && count > 0 && <span className="text-xs text-muted">{count}</span>}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <SectionTabs label="Secciones del expediente" tabs={sections} />
 
       <Outlet key={found.id} context={{ found } satisfies CaseContext} />
     </div>
