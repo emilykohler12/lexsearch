@@ -7,10 +7,10 @@
 **/*.tsbuildinfo
 **/*.log
 
-# Secretos
-.env
-.env.*
-!.env.example
+# Secretos (en cualquier carpeta, no solo en la raíz)
+**/.env
+**/.env.*
+!**/.env.example
 
 # Datos locales del sistema
 backend/storage

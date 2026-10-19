@@ -45,7 +45,7 @@ Las decisiones técnicas y su justificación están en [docs/decisiones.md](docs
 
 ## Puesta en marcha
 
-Todos los comandos se ejecutan en la carpeta del proyecto (`C:\Users\Emily Kohler\lexsearch`).
+Todos los comandos se ejecutan en la carpeta del proyecto (la que contiene este archivo).
 
 1. **Instalar dependencias** (solo la primera vez o cuando cambie `package.json`):
 
