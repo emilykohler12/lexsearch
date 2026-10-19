@@ -173,6 +173,7 @@ jobs:
           curl -fsS -o /dev/null http://localhost:8080/api/cases
           curl -fsS -o /dev/null http://localhost:8080/api/notifications
           curl -fsS -o /dev/null http://localhost:8080/api/normativa/status
+          curl -fsS -o /dev/null http://localhost:8080/api/hearings
           # El usuario sin privilegios de la API puede guardar archivos en la carpeta de documentos.
           curl -fsS -X POST http://localhost:8080/api/documents -F category=OTRO -F "files=@README.md;type=text/markdown" | grep '"status":"created"' > /dev/null
 

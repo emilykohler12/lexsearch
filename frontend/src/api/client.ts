@@ -33,6 +33,9 @@ import type {
   NormativeStatus,
   NormativeTopic,
   NormativeTopicInput,
+  Hearing,
+  HearingInput,
+  HearingSummary,
   ProceedingInput,
   SearchFilters,
   SearchHit,
@@ -297,4 +300,20 @@ export const api = {
     request<{ topic: NormativeTopic }>(`/normativa/topics/${id}`, { method: 'PATCH', body: json(data) }).then((r) => r.topic),
 
   deleteNormativeTopic: (id: string) => request<void>(`/normativa/topics/${id}`, { method: 'DELETE' }),
+
+  // Audiencia: el simulador (la IA hace de juez o de abogado de la contraparte)
+  listHearings: () => request<{ hearings: HearingSummary[] }>('/hearings').then((r) => r.hearings),
+
+  getHearing: (id: string) => request<{ hearing: Hearing }>(`/hearings/${id}`).then((r) => r.hearing),
+
+  createHearing: (data: HearingInput) => request<{ hearing: Hearing }>('/hearings', { method: 'POST', body: json(data) }).then((r) => r.hearing),
+
+  sendHearingTurn: (id: string, content: string) =>
+    request<{ hearing: Hearing }>(`/hearings/${id}/turns`, { method: 'POST', body: json({ content }) }).then((r) => r.hearing),
+
+  replyHearing: (id: string) => request<{ hearing: Hearing }>(`/hearings/${id}/reply`, { method: 'POST' }).then((r) => r.hearing),
+
+  finishHearing: (id: string) => request<{ hearing: Hearing }>(`/hearings/${id}/finish`, { method: 'POST' }).then((r) => r.hearing),
+
+  deleteHearing: (id: string) => request<void>(`/hearings/${id}`, { method: 'DELETE' }),
 };

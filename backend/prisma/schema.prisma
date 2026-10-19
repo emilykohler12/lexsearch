@@ -154,29 +154,29 @@ model Draft {
 /// Ficha de cliente (Fase 3): datos, contraparte, caso y documentación que falta reunir.
 /// Los textos vacíos significan "sin dato": así la interfaz y el agente no manejan nulos.
 model Client {
-  id                   String   @id @default(uuid()) @db.Uuid
-  fullName             String   @map("full_name")
+  id                   String       @id @default(uuid()) @db.Uuid
+  fullName             String       @map("full_name")
   /// FISICA (persona humana) o JURIDICA (sociedad, asociación...).
-  personType           String   @default("FISICA") @map("person_type")
+  personType           String       @default("FISICA") @map("person_type")
   /// DNI, CUIT o CUIL, tal como lo escribe el abogado.
-  documentNumber       String   @default("") @map("document_number")
-  email                String   @default("")
-  phone                String   @default("")
-  address              String   @default("")
-  counterpartyName     String   @default("") @map("counterparty_name")
-  counterpartyDocument String   @default("") @map("counterparty_document")
-  counterpartyAddress  String   @default("") @map("counterparty_address")
+  documentNumber       String       @default("") @map("document_number")
+  email                String       @default("")
+  phone                String       @default("")
+  address              String       @default("")
+  counterpartyName     String       @default("") @map("counterparty_name")
+  counterpartyDocument String       @default("") @map("counterparty_document")
+  counterpartyAddress  String       @default("") @map("counterparty_address")
   /// Área de práctica (LABORAL, CIVIL...; ver clients.schemas.ts). Nula hasta definirla.
-  practiceArea         String?  @map("practice_area")
-  conflictSummary      String   @default("") @map("conflict_summary")
+  practiceArea         String?      @map("practice_area")
+  conflictSummary      String       @default("") @map("conflict_summary")
   /// Lo que el cliente pretende obtener.
-  claim                String   @default("")
+  claim                String       @default("")
   /// Documentación que falta reunir: [{ id, text, done }].
-  checklist            Json     @default("[]")
+  checklist            Json         @default("[]")
   /// Notas o transcripción de la primera reunión: de ahí sale la ficha.
-  meetingNotes         String   @default("") @map("meeting_notes")
-  createdAt            DateTime @default(now()) @map("created_at")
-  updatedAt            DateTime @updatedAt @map("updated_at")
+  meetingNotes         String       @default("") @map("meeting_notes")
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
   drafts               Draft[]
   deadlines            Deadline[]
   cases                CaseClient[]
@@ -252,25 +252,26 @@ model Notification {
 
 /// Expediente (Fase 5): el caso que el abogado lleva para uno o más clientes.
 model Case {
-  id           String       @id @default(uuid()) @db.Uuid
+  id             String              @id @default(uuid()) @db.Uuid
   /// Carátula: «Pérez, Juan c/ Gómez, Ana s/ daños y perjuicios».
-  title        String
+  title          String
   /// Número de expediente tal como lo escribe el abogado (45678/2026).
-  number       String       @default("")
+  number         String              @default("")
   /// Juzgado o tribunal.
-  court        String       @default("")
+  court          String              @default("")
   /// Área de práctica (LABORAL, CIVIL...; ver clients.schemas.ts). Nula hasta definirla.
-  practiceArea String?      @map("practice_area")
+  practiceArea   String?             @map("practice_area")
   /// ACTIVE (en trámite), PAUSED (paralizado) o CLOSED (terminado o archivado).
-  status       String       @default("ACTIVE")
-  notes        String       @default("")
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
+  status         String              @default("ACTIVE")
+  notes          String              @default("")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
   clients        CaseClient[]
   proceedings    Proceeding[]
   deadlines      Deadline[]
   documents      Document[]
   contradictions Contradiction[]
+  hearings       HearingSimulation[]
 
   @@index([status, updatedAt])
   @@map("cases")
@@ -436,4 +437,62 @@ model NormativeRun {
   @@unique([source, editionDate])
   @@index([finishedAt])
   @@map("normative_runs")
+}
+
+/// Práctica de audiencia (Fase 8): el abogado ensaya frente a una IA que hace de juez o de abogado de la contraparte.
+/// Todo lo que la IA necesita para seguir la conversación queda copiado acá: si el borrador se edita o el expediente
+/// cambia después, la práctica sigue siendo la misma.
+model HearingSimulation {
+  id            String        @id @default(uuid()) @db.Uuid
+  title         String
+  /// JUDGE (la IA hace de juez) u OPPONENT (la IA hace de abogado de la contraparte).
+  role          String
+  /// ACTIVE (en curso) o FINISHED (terminada, con su devolución).
+  status        String        @default("ACTIVE")
+  /// Expediente vinculado (opcional). Si se borra, la práctica queda.
+  caseId        String?       @map("case_id") @db.Uuid
+  /// De dónde salió el escrito: DRAFT (un borrador), DOCUMENT (un documento de la biblioteca) o TEXT (texto pegado).
+  materialKind  String        @map("material_kind")
+  materialTitle String        @map("material_title")
+  /// Texto del escrito tal como estaba al empezar.
+  materialText  String        @map("material_text")
+  /// Carátula, juzgado y actuaciones del expediente al empezar; vacío si no se eligió uno.
+  caseContext   String        @default("") @map("case_context")
+  /// A quién representa el abogado y qué quiere practicar (opcionales).
+  position      String        @default("")
+  focus         String        @default("")
+  /// Devolución al terminar (resumen, lo que salió bien, lo que conviene reforzar y qué preparar); nula mientras está en curso.
+  feedback      Json?
+  model         String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  finishedAt    DateTime?     @map("finished_at")
+  case          Case?         @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  turns         HearingTurn[]
+
+  @@index([updatedAt])
+  @@index([caseId])
+  @@map("hearing_simulations")
+}
+
+/// Cada intervención de la conversación: la de la IA o la del abogado.
+model HearingTurn {
+  id                  String            @id @default(uuid()) @db.Uuid
+  simulationId        String            @map("simulation_id") @db.Uuid
+  /// Orden dentro de la práctica, desde 0.
+  index               Int
+  /// AI (el juez o la contraparte) o USER (el abogado).
+  speaker             String
+  content             String
+  /// Solo en los turnos de la IA: APERTURA, PREGUNTA, REPREGUNTA, OBJECION o CIERRE.
+  kind                String            @default("")
+  /// Solo en los turnos de la IA: el punto que se estaba examinando.
+  topic               String            @default("")
+  /// Solo en los turnos de la IA: normas o fallos que nombró y que no figuran en el material.
+  unverifiedCitations String[]          @default([]) @map("unverified_citations")
+  createdAt           DateTime          @default(now()) @map("created_at")
+  simulation          HearingSimulation @relation(fields: [simulationId], references: [id], onDelete: Cascade)
+
+  @@unique([simulationId, index])
+  @@map("hearing_turns")
 }

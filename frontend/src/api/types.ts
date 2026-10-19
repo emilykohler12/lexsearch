@@ -599,3 +599,75 @@ export interface NormativeTopicInput {
   keywords?: string[];
   description?: string;
 }
+
+// ── Audiencia (Fase 8) ──────────────────────────────────────────────────────
+
+/** Who the AI plays in the practice. */
+export type HearingRole = 'JUDGE' | 'OPPONENT';
+export type HearingStatus = 'ACTIVE' | 'FINISHED';
+export type HearingMaterialKind = 'DRAFT' | 'DOCUMENT' | 'TEXT';
+export type HearingTurnKind = 'APERTURA' | 'PREGUNTA' | 'REPREGUNTA' | 'OBJECION' | 'CIERRE';
+
+export interface HearingTurn {
+  id: string;
+  index: number;
+  /** AI is the judge or the lawyer of the other side; USER is the lawyer practicing. */
+  speaker: 'AI' | 'USER';
+  content: string;
+  /** Only for the AI's turns. */
+  kind: HearingTurnKind | null;
+  topic: string;
+  /** Norms and rulings the AI named that are not in the lawyer's material: she has to check them. */
+  unverifiedCitations: string[];
+  createdAt: string;
+}
+
+export interface HearingFeedbackPoint {
+  point: string;
+  /** Her own words (or her brief's); empty when none could be found. */
+  quote: string;
+  quoteSource: 'ABOGADO' | 'ESCRITO' | null;
+  quoteVerified: boolean;
+}
+
+export interface HearingFeedback {
+  summary: string;
+  strengths: HearingFeedbackPoint[];
+  weaknesses: Array<HearingFeedbackPoint & { why: string; suggestion: string }>;
+  prepare: string[];
+}
+
+export interface HearingSummary {
+  id: string;
+  title: string;
+  role: HearingRole;
+  status: HearingStatus;
+  material: { kind: HearingMaterialKind; title: string };
+  case: { id: string; title: string } | null;
+  turnCount: number;
+  createdAt: string;
+  updatedAt: string;
+  finishedAt: string | null;
+}
+
+export interface Hearing extends Omit<HearingSummary, 'turnCount'> {
+  position: string;
+  focus: string;
+  turns: HearingTurn[];
+  feedback: HearingFeedback | null;
+  /** How many answers she can still give. */
+  answersLeft: number;
+}
+
+export type HearingMaterialInput =
+  | { kind: 'DRAFT'; id: string }
+  | { kind: 'DOCUMENT'; id: string }
+  | { kind: 'TEXT'; title?: string; text: string };
+
+export interface HearingInput {
+  role: HearingRole;
+  material: HearingMaterialInput;
+  caseId?: string;
+  position?: string;
+  focus?: string;
+}

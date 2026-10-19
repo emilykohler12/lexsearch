@@ -3,6 +3,7 @@ import {
   CalendarClock,
   FilePenLine,
   FolderKanban,
+  Gavel,
   History,
   MessageSquareText,
   Newspaper,
@@ -34,6 +35,7 @@ const NAV: NavItem[] = [
   { to: '/plazos', label: 'Plazos', icon: CalendarClock, badge: 'deadlines' },
   { to: '/normativa', label: 'Normativa', icon: Newspaper, badge: 'normative', secondary: true },
   { to: '/borradores', label: 'Borradores', icon: FilePenLine },
+  { to: '/audiencia', label: 'Audiencia', icon: Gavel, secondary: true },
   { to: '/biblioteca', label: 'Biblioteca', icon: BookOpen, secondary: true },
   { to: '/historial', label: 'Historial', icon: History, secondary: true },
 ];

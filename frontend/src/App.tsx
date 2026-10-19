@@ -13,6 +13,8 @@ import { ConsultPage } from './pages/ConsultPage';
 import { DeadlineEditorPage } from './pages/DeadlineEditorPage';
 import { DraftDetailPage } from './pages/DraftDetailPage';
 import { DraftsPage } from './pages/DraftsPage';
+import { HearingPage } from './pages/HearingPage';
+import { HearingsPage } from './pages/HearingsPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LibraryPage } from './pages/LibraryPage';
 import { NonWorkingDaysPage } from './pages/NonWorkingDaysPage';
@@ -69,6 +71,8 @@ const router = createBrowserRouter([
       },
       { path: 'borradores', element: <DraftsPage /> },
       { path: 'borradores/:id', element: <DraftDetailPage /> },
+      { path: 'audiencia', element: <HearingsPage /> },
+      { path: 'audiencia/:id', element: <HearingPage /> },
       { path: 'biblioteca', element: <LibraryPage /> },
       { path: 'historial', element: <HistoryPage /> },
       { path: 'historial/:id', element: <HistoryPage /> },

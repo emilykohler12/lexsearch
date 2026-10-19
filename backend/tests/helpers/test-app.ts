@@ -10,7 +10,9 @@ import { createPrismaClient } from '../../src/lib/prisma.js';
 import type { LlmProvider } from '../../src/modules/llm/llm-provider.js';
 import { FakeEmbeddingProvider, FakeNormativeSource, FakeOcrEngine } from './fakes.js';
 
-export async function createTestApp(options: { llm?: LlmProvider | null; now?: () => Date; provincial?: boolean } = {}) {
+export async function createTestApp(
+  options: { llm?: LlmProvider | null; now?: () => Date; provincial?: boolean; hearingLimits?: { turns: number; heavy: number } } = {},
+) {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl?.includes('_test')) throw new Error('Integration tests must run against the test database');
 
@@ -35,6 +37,8 @@ export async function createTestApp(options: { llm?: LlmProvider | null; now?: (
     normativeSources: options.provincial ? [normativeSource, provincialSource] : [normativeSource],
     // The tests run the checks themselves, when and as they want.
     normativeAutoRun: false,
+    // The practices of the audiencia simulator are many in one test file: the real limits are checked by one test of their own.
+    hearingLimits: options.hearingLimits ?? { turns: 10_000, heavy: 10_000 },
     ...(options.now && { now: options.now }),
   });
 
@@ -60,6 +64,7 @@ export async function createTestApp(options: { llm?: LlmProvider | null; now?: (
       await db.normativeItem.deleteMany();
       await db.normativeTopic.deleteMany();
       await db.normativeRun.deleteMany();
+      await db.hearingSimulation.deleteMany(); // its turns go with it
       await db.draft.deleteMany();
       await db.notification.deleteMany();
       await db.deadline.deleteMany();

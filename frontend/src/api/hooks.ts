@@ -49,6 +49,9 @@ export const queryKeys = {
   normativeItems: (filters: { source?: string | undefined; date?: string | undefined; q?: string | undefined; category?: string | undefined }) =>
     ['normative', 'items', filters] as const,
   normativeTopics: ['normative', 'topics'] as const,
+  // Everything about the practices of audiencia starts with 'hearings': the list and each practice.
+  hearings: ['hearings'] as const,
+  hearing: (id: string) => ['hearings', id] as const,
 };
 
 export function useHealth() {
@@ -566,4 +569,73 @@ export function useUpdateNormativeTopic() {
 export function useDeleteNormativeTopic() {
   const refresh = useRefreshNormativeData();
   return useMutation({ mutationFn: api.deleteNormativeTopic, onSuccess: refresh });
+}
+
+// ── Audiencia ───────────────────────────────────────────────────────────────
+
+export function useHearings() {
+  return useQuery({ queryKey: queryKeys.hearings, queryFn: api.listHearings });
+}
+
+export function useHearing(id: string | undefined) {
+  return useQuery({ queryKey: queryKeys.hearing(id ?? ''), queryFn: () => api.getHearing(id ?? ''), enabled: Boolean(id) });
+}
+
+export function useCreateHearing() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.createHearing,
+    onSuccess: (hearing) => {
+      queryClient.setQueryData(queryKeys.hearing(hearing.id), hearing);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.hearings, exact: true });
+    },
+  });
+}
+
+/**
+ * What changes one practice (an answer, a retry, the end) gives the whole practice back: it replaces what the
+ * screen has. The answer of the lawyer is saved before the model is asked, so after a failure the screen reads
+ * what was saved.
+ */
+function useHearingChange(id: string, mutationFn: () => Promise<Awaited<ReturnType<typeof api.getHearing>>>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: (hearing) => {
+      queryClient.setQueryData(queryKeys.hearing(id), hearing);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.hearings, exact: true });
+    },
+    onError: () => queryClient.invalidateQueries({ queryKey: queryKeys.hearing(id), exact: true }),
+  });
+}
+
+export function useSendHearingTurn(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (content: string) => api.sendHearingTurn(id, content),
+    onSuccess: (hearing) => {
+      queryClient.setQueryData(queryKeys.hearing(id), hearing);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.hearings, exact: true });
+    },
+    onError: () => queryClient.invalidateQueries({ queryKey: queryKeys.hearing(id), exact: true }),
+  });
+}
+
+export function useReplyHearing(id: string) {
+  return useHearingChange(id, () => api.replyHearing(id));
+}
+
+export function useFinishHearing(id: string) {
+  return useHearingChange(id, () => api.finishHearing(id));
+}
+
+export function useDeleteHearing() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.deleteHearing,
+    onSuccess: (_data, id) => {
+      queryClient.removeQueries({ queryKey: queryKeys.hearing(id), exact: true });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.hearings, exact: true });
+    },
+  });
 }

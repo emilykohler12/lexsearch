@@ -15,6 +15,8 @@ export const PROMPT_VERSIONS = {
   proceedingExtraction: 'proceeding-extraction.v1',
   contradictionDetection: 'contradiction-detection.v1',
   normativeRelevance: 'normative-relevance.v1',
+  hearingSimulator: 'hearing-simulator.v1',
+  hearingFeedback: 'hearing-feedback.v1',
 } as const;
 
 export interface Prompt {

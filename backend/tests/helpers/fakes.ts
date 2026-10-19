@@ -96,11 +96,15 @@ export class FakeLlmProvider implements LlmProvider {
   /** When set, structured requests fail with it (a busy or unreachable model). */
   structuredError: Error | null = null;
 
+  /** When set, structured requests wait for it (a test holds a request in the middle to look at it). */
+  structuredGate: Promise<void> | null = null;
+
   /** When set, decides the answer to each structured request from what was asked (instead of structuredData). */
   structuredResponder: ((input: StructuredInput<unknown>) => unknown) | null = null;
 
   async generateStructured<T>(input: StructuredInput<T>): Promise<StructuredResult<T>> {
     this.structuredCalls.push(input as StructuredInput<unknown>);
+    if (this.structuredGate) await this.structuredGate;
     if (this.structuredError) throw this.structuredError;
     const answer = this.structuredResponder ? this.structuredResponder(input as StructuredInput<unknown>) : this.structuredData;
     // Validated against the real schema, so a test can't pass with data the model could never return.

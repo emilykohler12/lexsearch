@@ -45,6 +45,11 @@ import { draftsRouter } from './modules/drafts/drafts.routes.js';
 import { DraftsService } from './modules/drafts/drafts.service.js';
 import type { EmbeddingProvider } from './modules/embeddings/embedding-provider.js';
 import { healthRouter } from './modules/health/health.routes.js';
+import { HearingSimulator } from './modules/hearings/hearing-simulator.js';
+import { HearingsController } from './modules/hearings/hearings.controller.js';
+import { HearingsRepository } from './modules/hearings/hearings.repository.js';
+import { hearingsRouter, type HearingLimits } from './modules/hearings/hearings.routes.js';
+import { HearingsService } from './modules/hearings/hearings.service.js';
 import { InteractionsController } from './modules/interactions/interactions.controller.js';
 import { InteractionsRepository } from './modules/interactions/interactions.repository.js';
 import { interactionsRouter } from './modules/interactions/interactions.routes.js';
@@ -80,6 +85,8 @@ export interface AppDeps {
   normativeSources: NormativeSource[];
   /** Start the normative checks by themselves when the topics change. On unless a test needs it quiet. */
   normativeAutoRun?: boolean;
+  /** Requests per minute of the audiencia simulator (tests that run dozens of practices raise them). */
+  hearingLimits?: HearingLimits;
   /** Injectable clock for what depends on the date (the normative check). */
   now?: () => Date;
 }
@@ -181,14 +188,25 @@ export function createApp(deps: AppDeps) {
     autoRun: deps.normativeAutoRun ?? true,
     ...(deps.now && { now: deps.now }),
   });
+  const draftsRepository = new DraftsRepository(db);
   const draftsService = new DraftsService({
-    repository: new DraftsRepository(db),
+    repository: draftsRepository,
     documents: documentsRepository,
     clients: clientsRepository,
     reader: documentTextReader,
     rag: ragService,
     llm,
     interactions: interactionsRepository,
+    logger,
+  });
+
+  const hearingsService = new HearingsService({
+    repository: new HearingsRepository(db),
+    simulator: new HearingSimulator({ llm, interactions: interactionsRepository, logger }),
+    cases: casesRepository,
+    drafts: draftsRepository,
+    documents: documentsRepository,
+    reader: documentTextReader,
     logger,
   });
 
@@ -263,6 +281,7 @@ export function createApp(deps: AppDeps) {
   app.use('/api/notifications', notificationsRouter(new NotificationsController(notificationsService)));
   app.use('/api/normativa', normativeRouter(new NormativeController(normativeService)));
   app.use('/api/drafts', draftsRouter(new DraftsController(draftsService)));
+  app.use('/api/hearings', hearingsRouter(new HearingsController(hearingsService), deps.hearingLimits));
   app.use('/api/interactions', interactionsRouter(new InteractionsController(interactionsRepository)));
 
   app.use(notFoundHandler);

@@ -1,4 +1,4 @@
-import { Check, Copy, Download, ExternalLink, Eye, Pencil, Save, Trash2, type LucideIcon } from 'lucide-react';
+import { Check, Copy, Download, ExternalLink, Eye, Gavel, Pencil, Save, Trash2, type LucideIcon } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { api } from '../api/client';
@@ -213,6 +213,10 @@ function DraftEditor({ draft }: { draft: Draft }) {
               <span className="sm:hidden">Word</span>
               <span className="hidden sm:inline">Descargar Word</span>
             </button>
+            <Link to={`/audiencia?borrador=${draft.id}`} className="btn-secondary min-h-10 sm:min-h-0">
+              <Gavel className="size-4" aria-hidden />
+              <span className="max-sm:sr-only">Practicar audiencia</span>
+            </Link>
             <button
               type="button"
               className="btn-icon hover:text-red-700"

@@ -1,4 +1,4 @@
-import { Pencil } from 'lucide-react';
+import { Gavel, Pencil } from 'lucide-react';
 import { Link, Outlet, useParams } from 'react-router';
 import { useCase, useContradictions, useDocuments } from '../api/hooks';
 import type { Case, CaseStatus } from '../api/types';
@@ -77,10 +77,16 @@ function CaseShell({ found }: { found: Case }) {
         </div>
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <p className="text-sm text-muted">{stats.join(' · ')}</p>
-          <Link to={`${base}/editar`} className="btn-secondary min-h-11 sm:min-h-0">
-            <Pencil className="size-4" aria-hidden />
-            Editar datos
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to={`/audiencia?expediente=${found.id}`} className="btn-secondary min-h-11 sm:min-h-0">
+              <Gavel className="size-4" aria-hidden />
+              Practicar audiencia
+            </Link>
+            <Link to={`${base}/editar`} className="btn-secondary min-h-11 sm:min-h-0">
+              <Pencil className="size-4" aria-hidden />
+              Editar datos
+            </Link>
+          </div>
         </div>
       </header>
 

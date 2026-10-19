@@ -19,6 +19,7 @@ import {
 } from '../modules/deadlines/deadlines.schemas.js';
 import { updateDocumentSchema, uploadFieldsSchema } from '../modules/documents/documents.schemas.js';
 import { createDraftSchema, updateDraftSchema } from '../modules/drafts/drafts.schemas.js';
+import { createHearingSchema, sendTurnSchema } from '../modules/hearings/hearings.schemas.js';
 import { askBodySchema, searchBodySchema } from '../modules/rag/rag.schemas.js';
 
 /** Request schemas come from the same zod validators the API uses, so the docs can't drift. */
@@ -67,6 +68,7 @@ export function buildOpenApiDocument() {
       { name: 'Avisos', description: 'Avisos generados por el sistema (plazos por vencer)' },
       { name: 'Normativa', description: 'Vigía normativo: normas nuevas de los boletines oficiales (Nación y Provincia de Misiones) que tocan las áreas y los temas que el abogado sigue' },
       { name: 'Borradores', description: 'Escritos y contratos redactados por el agente con la biblioteca como referencia' },
+      { name: 'Audiencia', description: 'Simulador de audiencia: el abogado practica frente a una IA que hace de juez o de abogado de la contraparte y recibe una devolución' },
       { name: 'Historial', description: 'Interacciones registradas con los módulos de IA' },
     ],
     paths: {
@@ -413,6 +415,55 @@ export function buildOpenApiDocument() {
           responses: { 200: { description: 'OK' }, 400: errorResponse, 404: errorResponse },
         },
         delete: { tags: ['Normativa'], summary: 'Dejar de seguir un tema (se borran sus alertas)', responses: { 204: { description: 'Eliminado' }, 404: errorResponse } },
+      },
+      '/api/hearings': {
+        get: {
+          tags: ['Audiencia'],
+          summary: 'Listar las prácticas de audiencia (la más reciente primero)',
+          responses: { 200: { description: 'Cada práctica con su rol, su estado, el escrito, el expediente vinculado y cuántos turnos lleva' } },
+        },
+        post: {
+          tags: ['Audiencia'],
+          summary: 'Empezar una práctica: la IA abre la audiencia',
+          description:
+            'La IA hace de juez (JUDGE) o de abogado de la contraparte (OPPONENT) y lee el escrito (un borrador, un documento de la biblioteca o texto pegado) y, si se indica, la carátula y las actuaciones de un expediente. Responde con la práctica y el primer turno de la IA. Requiere GEMINI_API_KEY. Hasta 10 por minuto.',
+          requestBody: { required: true, ...json(jsonSchema(createHearingSchema)) },
+          responses: { 201: { description: 'Práctica creada con su primer turno' }, 400: errorResponse, 429: errorResponse, 502: errorResponse, 503: errorResponse },
+        },
+      },
+      '/api/hearings/{id}': {
+        parameters: [idParam],
+        get: { tags: ['Audiencia'], summary: 'Una práctica con toda la conversación y, si terminó, la devolución', responses: { 200: { description: 'OK' }, 404: errorResponse } },
+        delete: { tags: ['Audiencia'], summary: 'Eliminar una práctica', responses: { 204: { description: 'Eliminada' }, 404: errorResponse } },
+      },
+      '/api/hearings/{id}/turns': {
+        parameters: [idParam],
+        post: {
+          tags: ['Audiencia'],
+          summary: 'Responder en la audiencia: la IA contesta',
+          description:
+            'La respuesta del abogado se guarda aunque la IA falle; en ese caso hay que pedir la contestación con /reply. Cada turno de la IA marca las normas o fallos que nombró y que no figuran en el material (unverifiedCitations). Hasta 20 por minuto; 30 respuestas por práctica.',
+          requestBody: { required: true, ...json(jsonSchema(sendTurnSchema)) },
+          responses: { 200: { description: 'La práctica con el turno del abogado y el de la IA' }, 400: errorResponse, 404: errorResponse, 409: errorResponse, 429: errorResponse, 502: errorResponse },
+        },
+      },
+      '/api/hearings/{id}/reply': {
+        parameters: [idParam],
+        post: {
+          tags: ['Audiencia'],
+          summary: 'Pedir de nuevo la contestación de la IA a la última respuesta del abogado',
+          responses: { 200: { description: 'La práctica con el turno de la IA' }, 404: errorResponse, 409: errorResponse, 429: errorResponse, 502: errorResponse },
+        },
+      },
+      '/api/hearings/{id}/finish': {
+        parameters: [idParam],
+        post: {
+          tags: ['Audiencia'],
+          summary: 'Terminar la práctica y recibir la devolución',
+          description:
+            'La devolución resume cómo se desenvolvió el abogado, lo que salió bien, lo que conviene reforzar y qué tener listo. Cada frase citada se busca en lo que dijo el abogado o en su escrito: solo se muestra la que se encuentra. Si ya estaba terminada, devuelve la misma. Hasta 10 por minuto.',
+          responses: { 200: { description: 'La práctica terminada, con la devolución' }, 400: errorResponse, 404: errorResponse, 429: errorResponse, 502: errorResponse },
+        },
       },
       '/api/deadlines': {
         get: {
