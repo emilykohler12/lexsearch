@@ -6,6 +6,9 @@ import { pinoHttp } from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
 import type { PrismaClient } from './generated/prisma/client.js';
 import { buildOpenApiDocument } from './docs/openapi.js';
+import { AuthController } from './modules/auth/auth.controller.js';
+import { authRouter } from './modules/auth/auth.routes.js';
+import { AuthService, type AuthConfig } from './modules/auth/auth.service.js';
 import type { FileStorage } from './lib/file-storage.js';
 import type { Logger } from './lib/logger.js';
 import { errorHandler, notFoundHandler } from './middlewares/error-handler.js';
@@ -92,6 +95,12 @@ export interface AppDeps {
   normativeAutoRun?: boolean;
   /** Requests per minute of the audiencia simulator (tests that run dozens of practices raise them). */
   hearingLimits?: HearingLimits;
+  /** The access of the lawyer; null leaves the system open (only outside production). */
+  auth?: AuthConfig | null;
+  /** How many proxies stand in front of the API (see where it is used). */
+  trustProxyHops?: number;
+  /** Failed logins allowed per 15 minutes (tests lower it). */
+  loginAttempts?: number;
   /** Injectable clock for what depends on the date (the normative check). */
   now?: () => Date;
 }
@@ -218,9 +227,13 @@ export function createApp(deps: AppDeps) {
   const estimatesService = new EstimatesService({ repository: new EstimatesRepository(db), cases: casesRepository });
   const estimateAnalysis = new EstimateAnalysisService({ rag: ragService, cases: casesRepository, llm, interactions: interactionsRepository, logger });
 
+  const authController = new AuthController(deps.auth ? new AuthService(deps.auth, deps.now ? () => deps.now!().getTime() : undefined) : null);
+
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 'loopback');
+  // In Docker two proxies (Caddy and nginx) stand in front of the API: TRUST_PROXY_HOPS says how many, so the address
+  // of whoever asks (and the limit of login attempts) is the real one. Without it only the local machine is trusted.
+  app.set('trust proxy', deps.trustProxyHops ?? 'loopback');
 
   app.use(
     pinoHttp({
@@ -236,6 +249,8 @@ export function createApp(deps: AppDeps) {
 
   // Swagger UI needs inline scripts, so it gets its own relaxed CSP; the API keeps the strict one.
   const openApiDocument = buildOpenApiDocument();
+  // The documentation of the API is for whoever is logged in.
+  app.use(['/api/openapi.json', '/api/docs'], authController.requireSession);
   app.get('/api/openapi.json', (_req, res) => {
     res.json(openApiDocument);
   });
@@ -261,6 +276,9 @@ export function createApp(deps: AppDeps) {
   app.use(express.json({ limit: '1mb' }));
 
   app.use('/api/health', healthRouter({ db, embeddings, llm }));
+  app.use('/api/auth', authRouter(authController, deps.loginAttempts));
+  // Everything below needs an open session (the health check and the login above do not).
+  app.use('/api', authController.requireSession);
   app.use(
     '/api/documents',
     documentsRouter(new DocumentsController(documentsService), {

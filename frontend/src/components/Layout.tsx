@@ -6,6 +6,7 @@ import {
   FolderKanban,
   Gavel,
   History,
+  LogOut,
   MessageSquareText,
   Newspaper,
   Scale,
@@ -15,7 +16,7 @@ import {
 } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router';
 import { NETWORK_ERROR_MESSAGE } from '../api/client';
-import { useHealth, useNormativeUnread, useNotifications } from '../api/hooks';
+import { useAuth, useHealth, useLogout, useNormativeUnread, useNotifications } from '../api/hooks';
 
 type Badge = 'deadlines' | 'normative';
 
@@ -57,13 +58,31 @@ export function Layout() {
   );
 }
 
+/** Closes the session; only where there is a login. */
+function LogoutButton({ variant }: { variant: 'sidebar' | 'icon' }) {
+  const { data: auth } = useAuth();
+  const logout = useLogout();
+  if (!auth?.authRequired) return null;
+  return variant === 'icon' ? (
+    <button type="button" title="Cerrar sesión" aria-label="Cerrar sesión" onClick={() => logout.mutate()} className="grid size-11 place-items-center rounded-lg text-white/60 transition-colors hover:bg-white/5 hover:text-white">
+      <LogOut className="size-5" aria-hidden />
+    </button>
+  ) : (
+    <button type="button" onClick={() => logout.mutate()} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-white/70 transition-colors hover:bg-white/5 hover:text-white">
+      <LogOut className="size-4" aria-hidden />
+      Cerrar sesión
+    </button>
+  );
+}
+
 function Brand() {
   return (
     <div className="flex items-center gap-3">
       <span className="grid size-9 place-items-center rounded-lg bg-brass-500/15 text-brass-500">
         <Scale className="size-5" aria-hidden />
       </span>
-      <div>
+      {/* On a phone the icons of the menu need the room: only the mark is shown. */}
+      <div className="hidden min-[480px]:block md:block">
         <p className="font-serif text-lg leading-none text-white">LexSearch</p>
         <p className="mt-1 text-xs text-white/50">Tu estudio, asistido</p>
       </div>
@@ -115,7 +134,8 @@ function DesktopSidebar() {
         ))}
       </nav>
 
-      <div className="mt-auto px-3 pb-4">
+      <div className="mt-auto space-y-2 px-3 pb-4">
+        <LogoutButton variant="sidebar" />
         <SystemProblems className="rounded-lg px-3 py-2.5" />
       </div>
     </aside>
@@ -128,7 +148,7 @@ function MobileHeader() {
     <header className="sticky top-0 z-20 bg-navy-900 text-white/85 shadow-sm md:hidden">
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         <Brand />
-        <nav aria-label="Secundario" className="flex items-center gap-1">
+        <nav aria-label="Secundario" className="flex items-center">
           {NAV.filter((item) => item.secondary).map(({ to, label, icon: Icon, badge }) => (
             <NavLink
               key={to}
@@ -136,7 +156,7 @@ function MobileHeader() {
               title={label}
               aria-label={label}
               className={({ isActive }) =>
-                `grid size-10 place-items-center rounded-lg transition-colors ${
+                `grid size-11 place-items-center rounded-lg transition-colors ${
                   isActive ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/5 hover:text-white'
                 }`
               }
@@ -147,6 +167,7 @@ function MobileHeader() {
               </span>
             </NavLink>
           ))}
+          <LogoutButton variant="icon" />
         </nav>
       </div>
 

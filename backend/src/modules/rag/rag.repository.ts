@@ -62,6 +62,15 @@ export class RagRepository {
     return rows.map(normalizeHit);
   }
 
+  /** The first fragment of each document: where a ruling names its court and its date. */
+  async firstFragments(documentIds: string[]): Promise<Map<string, string>> {
+    const rows = await this.db.documentChunk.findMany({
+      where: { documentId: { in: documentIds }, ordinal: 0 },
+      select: { documentId: true, content: true },
+    });
+    return new Map(rows.map((row) => [row.documentId, row.content]));
+  }
+
   countReadyDocuments(): Promise<number> {
     return this.db.document.count({ where: { status: 'READY' } });
   }

@@ -1,5 +1,5 @@
 import { rm } from 'node:fs/promises';
-import { ServiceUnavailableError } from '../../lib/errors.js';
+import { ServiceUnavailableError, safeErrorMessage } from '../../lib/errors.js';
 import type { Logger } from '../../lib/logger.js';
 import type { IncomingFile } from '../documents/documents.service.js';
 import { readUploadedText } from '../documents/uploaded-text.js';
@@ -79,7 +79,7 @@ export class DeadlineAnalysisService {
             promptVersion: prompt.version,
             durationMs: Date.now() - startedAt,
             status: 'FAILED',
-            errorMessage: error instanceof Error ? error.message : String(error),
+            errorMessage: safeErrorMessage(error),
           })
           .catch((logError: unknown) => logger.error({ err: logError }, 'Could not record failed interaction'));
         throw error;

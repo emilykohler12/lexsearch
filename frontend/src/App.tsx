@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { createBrowserRouter, Link } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
+import { useAuth } from './api/hooks';
 import { Layout } from './components/Layout';
+import { Spinner } from './components/ui';
 import { CaseContradictionsPage } from './pages/CaseContradictionsPage';
 import { CaseDocumentsPage } from './pages/CaseDocumentsPage';
 import { CaseEditorPage } from './pages/CaseEditorPage';
@@ -16,6 +19,7 @@ import { DraftsPage } from './pages/DraftsPage';
 import { EstimatorPage } from './pages/EstimatorPage';
 import { HearingPage } from './pages/HearingPage';
 import { HearingsPage } from './pages/HearingsPage';
+import { LoginPage } from './pages/LoginPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LibraryPage } from './pages/LibraryPage';
 import { NonWorkingDaysPage } from './pages/NonWorkingDaysPage';
@@ -84,5 +88,20 @@ const router = createBrowserRouter([
 ]);
 
 export function App() {
+  const { data: auth, isPending } = useAuth();
+  // A query that fails before ever having data goes back to «pending» on each retry: the spinner is for the first answer only,
+  // or the app and the spinner would take turns forever while the server is down.
+  const [answered, setAnswered] = useState(false);
+  if (!isPending && !answered) setAnswered(true);
+
+  if (!answered) {
+    return (
+      <div className="grid min-h-screen place-items-center">
+        <Spinner className="size-6" />
+      </div>
+    );
+  }
+  // If the server can't be asked, the app opens as usual: its own banner says the system is down.
+  if (auth?.authRequired && !auth.authenticated) return <LoginPage />;
   return <RouterProvider router={router} />;
 }

@@ -688,10 +688,19 @@ export interface EstimateAntecedent {
   quoteVerified: boolean;
   similarities: string[];
   differences: string[];
+  /** The court as the ruling names it and its level; unknown when it doesn't say. */
+  court: string;
+  level: EstimateCourtLevel;
+  year: number | null;
+  /** What it weighs in the orientation: its court times how recent it is. */
+  weight: number;
   counted: boolean;
 }
 
+export type EstimateCourtLevel = 'CSJN' | 'SUPERIOR' | 'CAMARA' | 'PRIMERA' | 'DESCONOCIDO';
+
 export interface EstimateResult {
+  weighted: { favorable: number; unfavorable: number };
   orientation: EstimateOrientation;
   counts: { favorable: number; unfavorable: number; neutral: number; notComparable: number; unverified: number };
   searched: number;
@@ -745,4 +754,12 @@ export interface EstimateSaveInput extends EstimateAnalyzeInput {
   title?: string;
   result: EstimateResult;
   model?: string;
+}
+
+// Acceso
+export interface AuthState {
+  /** False when the system has no password set (development): everything is open. */
+  authRequired: boolean;
+  authenticated: boolean;
+  username: string | null;
 }

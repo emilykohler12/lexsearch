@@ -1,4 +1,5 @@
 import type {
+  AuthState,
   Estimate,
   EstimateAnalyzeInput,
   EstimateProposal,
@@ -78,6 +79,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     const error = (body as { error?: { code?: string; message?: string } } | null)?.error;
+    // The server (or the proxy in front of it) is not answering: nginx and the dev server say 502, 503 or 504 with no body of ours.
+    if (!error && [502, 503, 504].includes(response.status)) throw new ApiError(response.status, 'NETWORK', NETWORK_ERROR_MESSAGE);
     throw new ApiError(
       response.status,
       error?.code ?? 'HTTP_ERROR',
@@ -94,7 +97,9 @@ export const api = {
     // 503 still carries the status body (e.g. database down), so read it either way.
     const response = await fetch('/api/health').catch(() => null);
     if (!response) throw new ApiError(0, 'NETWORK', NETWORK_ERROR_MESSAGE);
-    return (await response.json()) as Health;
+    const health = (await response.json().catch(() => null)) as Health | null;
+    if (!health) throw new ApiError(response.status, 'NETWORK', NETWORK_ERROR_MESSAGE);
+    return health;
   },
 
   listDocuments: (filters: { caseId?: string } = {}) =>
@@ -324,6 +329,13 @@ export const api = {
   finishHearing: (id: string) => request<{ hearing: Hearing }>(`/hearings/${id}/finish`, { method: 'POST' }).then((r) => r.hearing),
 
   deleteHearing: (id: string) => request<void>(`/hearings/${id}`, { method: 'DELETE' }),
+
+  // Acceso
+  authState: () => request<AuthState>('/auth/me'),
+
+  login: (data: { username: string; password: string }) => request<AuthState>('/auth/login', { method: 'POST', body: json(data) }),
+
+  logout: () => request<void>('/auth/logout', { method: 'POST' }),
 
   // Estimador de antecedentes
   listEstimates: () => request<{ estimates: EstimateSummary[] }>('/estimates').then((r) => r.estimates),

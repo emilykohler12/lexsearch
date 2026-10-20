@@ -1,5 +1,5 @@
 import type { Client } from '../../generated/prisma/client.js';
-import { NotFoundError, ServiceUnavailableError } from '../../lib/errors.js';
+import { NotFoundError, ServiceUnavailableError, safeErrorMessage } from '../../lib/errors.js';
 import type { Logger } from '../../lib/logger.js';
 import type { InteractionsRepository } from '../interactions/interactions.repository.js';
 import type { LlmProvider } from '../llm/llm-provider.js';
@@ -92,7 +92,7 @@ export class ClientsService {
           promptVersion: prompt.version,
           durationMs: Date.now() - startedAt,
           status: 'FAILED',
-          errorMessage: error instanceof Error ? error.message : String(error),
+          errorMessage: safeErrorMessage(error),
         })
         .catch((logError: unknown) => logger.error({ err: logError }, 'Could not record failed interaction'));
       throw error;

@@ -2,7 +2,7 @@
 
 Sistema de IA para un único abogado (no es multiusuario): biblioteca consultable con RAG, borradores de escritos, fichas de cliente, plazos, expedientes con línea de tiempo, detector de contradicciones, vigía normativo (Boletín Oficial de la Nación y de Misiones) y simulador de audiencia. **Todo lo que genera la IA es una propuesta** que el abogado revisa: nada se guarda ni se da por cierto sin que lo confirme.
 
-Estado: fases 0 a 9 hechas; falta la 10 (hosting, login, HTTPS, backups, anonimización). Hasta la 10 el sistema escucha solo en `127.0.0.1` y no se expone a internet. El porqué de cada decisión técnica está en `docs/decisiones.md` (D1 a D24): leelo antes de cambiar la arquitectura. El resumen de funciones, en `README.md`.
+Estado: fases 0 a 9 hechas; la 10 está a medias: ya tiene login (usuario y contraseña), HTTPS (Caddy) y copias de seguridad cifradas; faltan elegir el servidor y la anonimización. Hasta entonces el sistema escucha solo en `127.0.0.1` y no se expone a internet. El porqué de cada decisión técnica está en `docs/decisiones.md` (D1 a D26): leelo antes de cambiar la arquitectura. El resumen de funciones, en `README.md`.
 
 ## Stack
 
@@ -14,7 +14,7 @@ Monorepo npm con dos workspaces (Node ≥ 24):
 
 ## Estructura
 
-- `backend/src/modules/<tema>/`: un módulo por tema, con capas `routes → controller → service → repository` (sin lógica de negocio en los controllers) y `*.schemas.ts` con zod para validar entradas y armar las respuestas. Módulos: documents, embeddings, ocr, rag, llm, drafts, clients, cases, deadlines, calendar, notifications, contradictions, normative, hearings, estimates, interactions, health.
+- `backend/src/modules/<tema>/`: un módulo por tema, con capas `routes → controller → service → repository` (sin lógica de negocio en los controllers) y `*.schemas.ts` con zod para validar entradas y armar las respuestas. Módulos: documents, embeddings, ocr, rag, llm, drafts, clients, cases, deadlines, calendar, notifications, contradictions, normative, hearings, estimates, auth, interactions, health.
 - `backend/src/app.ts` arma la app con todas las dependencias inyectadas (los tests reemplazan el LLM, los embeddings y el OCR); `server.ts` la arranca. `lib/errors.ts` y `middlewares/error-handler.ts` convierten los errores en respuestas con mensajes seguros para mostrar.
 - `backend/src/docs/openapi.ts`: documentación de la API (Swagger en `/api/docs`); todo endpoint nuevo se documenta ahí.
 - `backend/prompts/<nombre>.v<N>.md`: prompts versionados, registrados en `backend/src/modules/llm/prompts.ts` (`PROMPT_VERSIONS`).
@@ -33,6 +33,7 @@ Monorepo npm con dos workspaces (Node ≥ 24):
 | `npm run test:unit` | Tests unitarios (no necesitan base) |
 | `npm test` | Unitarios + de integración (necesita la base en Docker) |
 | `npm run models:download` | Descarga y prueba el modelo local de embeddings |
+| `npm run auth:hash -w backend` | Genera `AUTH_USERNAME` y `AUTH_PASSWORD_HASH` para el `.env` (la contraseña no se guarda) |
 
 Solo en el backend (`npm run <script> -w backend`): `test:integration`, `db:deploy` (aplica las migraciones; es lo que hace `npm run db:migrate`), `db:migrate:dev`, `db:generate` (también corre en el `postinstall`) y `db:studio`.
 
@@ -56,6 +57,7 @@ Solo en el backend (`npm run <script> -w backend`): `test:integration`, `db:depl
 **Idioma.** El código (identificadores, comentarios, nombres de archivo) está en inglés; todo lo que ve el usuario —interfaz, mensajes de error de la API, prompts, documentación— está en español rioplatense (voseo: «elegí», «tocá»).
 
 **Datos confidenciales.** Los datos de clientes y expedientes están protegidos por secreto profesional.
+- Con la contraseña puesta (`AUTH_*`) todo `/api` pide sesión salvo `/api/health` y `/api/auth/*`; en producción la API no arranca sin ella. Los errores que se guardan en el historial pasan por `safeErrorMessage` (`lib/errors.ts`): nunca `error.message` crudo.
 - Los logs registran método, ruta, estado, ids, cantidades y tiempos; nunca contenido de documentos, preguntas, respuestas ni textos de escritos (D9). Lo que lleva contenido viaja en el cuerpo (POST), no en la URL. Se loguea con el `logger` (pino), no con `console.log`.
 - A Gemini viaja solo lo que cada tarea necesita. En el plan gratuito Google puede usarlo para mejorar sus productos: antes de trabajar con datos reales hay que activar la facturación (D4, D12).
 - No leas ni copies el `.env` (tiene `GEMINI_API_KEY`): las variables están documentadas en `.env.example`.

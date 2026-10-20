@@ -1,4 +1,4 @@
-import { AppError, BadRequestError, ServiceUnavailableError } from '../../lib/errors.js';
+import { BadRequestError, ServiceUnavailableError, safeErrorMessage } from '../../lib/errors.js';
 import type { Logger } from '../../lib/logger.js';
 import { toIsoDate } from '../calendar/dates.js';
 import type { CasesRepository } from '../cases/cases.repository.js';
@@ -42,7 +42,7 @@ export class EstimateAnalysisService {
     const caseContext = input.caseId ? await this.loadCaseContext(input.caseId) : '';
 
     const hits = await rag.search({ query: buildSearchQuery(input.facts, input.claim), categories: ['JURISPRUDENCIA'], limit: FRAGMENTS_SEARCHED });
-    const rulings = groupRulings(hits);
+    const rulings = groupRulings(hits, await rag.headings([...new Set(hits.map((hit) => hit.documentId))]));
     const logInput = { caseId: input.caseId ?? null, factsChars: input.facts.length, rulings: rulings.length };
 
     // Nothing like the case in the library: say so without paying for a model call.
@@ -89,7 +89,7 @@ export class EstimateAnalysisService {
           durationMs: Date.now() - startedAt,
           status: 'FAILED',
           // Only messages written for the lawyer: anything else could carry part of the case.
-          errorMessage: error instanceof AppError ? error.message : 'Error interno',
+          errorMessage: safeErrorMessage(error),
         })
         .catch((logError: unknown) => logger.error({ err: logError }, 'Could not record a failed interaction'));
       throw error;

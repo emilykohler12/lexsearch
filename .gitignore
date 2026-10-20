@@ -28,3 +28,7 @@ Thumbs.db
 
 # Claude Code: preferencias locales (no se comparten)
 .claude/settings.local.json
+
+# Copias de seguridad cifradas y certificados del despliegue (docker-compose.prod.yml)
+backups/
+tls/

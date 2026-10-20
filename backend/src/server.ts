@@ -34,6 +34,17 @@ const llm = env.GEMINI_API_KEY
     })
   : null;
 
+const auth =
+  env.AUTH_USERNAME && env.AUTH_PASSWORD_HASH
+    ? {
+        username: env.AUTH_USERNAME,
+        passwordHash: env.AUTH_PASSWORD_HASH,
+        idleHours: env.AUTH_IDLE_HOURS,
+        secureCookie: (env.COOKIE_SECURE ?? String(env.NODE_ENV === 'production')) === 'true',
+      }
+    : null;
+if (!auth) logger.warn('Sin usuario ni contraseña (AUTH_USERNAME / AUTH_PASSWORD_HASH): el sistema está abierto a quien llegue a esta dirección.');
+
 const { app, queue, documentsService, deadlineWatcher, normativeWatcher } = createApp({
   db,
   storage,
@@ -43,6 +54,8 @@ const { app, queue, documentsService, deadlineWatcher, normativeWatcher } = crea
   logger,
   corsOrigin: env.CORS_ORIGIN,
   maxUploadMb: env.MAX_UPLOAD_MB,
+  auth,
+  ...(env.TRUST_PROXY_HOPS && { trustProxyHops: env.TRUST_PROXY_HOPS }),
   normativeSources: [new BoletinOficialSource(), new BoletinOficialMisionesSource()],
 });
 

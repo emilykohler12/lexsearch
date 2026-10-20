@@ -1,4 +1,5 @@
 import type { Logger } from '../../lib/logger.js';
+import { safeErrorMessage } from '../../lib/errors.js';
 import type { InteractionsRepository } from '../interactions/interactions.repository.js';
 import type { LlmProvider } from '../llm/llm-provider.js';
 import { loadPrompt, PROMPT_VERSIONS } from '../llm/prompts.js';
@@ -96,7 +97,7 @@ export class NormativeAnalyzer {
           promptVersion: prompt.version,
           durationMs: Date.now() - startedAt,
           status: 'FAILED',
-          errorMessage: error instanceof Error ? error.message : String(error),
+          errorMessage: safeErrorMessage(error),
         })
         .catch((logError: unknown) => logger.error({ err: logError }, 'Could not record a failed interaction'));
       throw error;

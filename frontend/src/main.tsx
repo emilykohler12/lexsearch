@@ -8,6 +8,8 @@ import './index.css';
 // When a request can't reach the server, check the system state right away so the banner of the menu shows
 // without waiting for the next poll (the health query itself is left alone: it would call itself).
 const onNetworkError = (error: Error, isHealth: boolean) => {
+  // The session closed (or the server restarted): the app goes back to the login.
+  if (error instanceof ApiError && error.status === 401) queryClient.setQueryData(['auth'], { authRequired: true, authenticated: false, username: null });
   if (!isHealth && error instanceof ApiError && error.code === 'NETWORK') void queryClient.invalidateQueries({ queryKey: ['health'] });
 };
 

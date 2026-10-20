@@ -7,11 +7,21 @@ import { createApp } from '../../src/app.js';
 import { FileStorage } from '../../src/lib/file-storage.js';
 import { logger } from '../../src/lib/logger.js';
 import { createPrismaClient } from '../../src/lib/prisma.js';
+import type { AuthConfig } from '../../src/modules/auth/auth.service.js';
 import type { LlmProvider } from '../../src/modules/llm/llm-provider.js';
 import { FakeEmbeddingProvider, FakeNormativeSource, FakeOcrEngine } from './fakes.js';
 
 export async function createTestApp(
-  options: { llm?: LlmProvider | null; now?: () => Date; provincial?: boolean; hearingLimits?: { turns: number; heavy: number } } = {},
+  options: {
+    llm?: LlmProvider | null;
+    now?: () => Date;
+    provincial?: boolean;
+    hearingLimits?: { turns: number; heavy: number };
+    /** Turns the login on (the other tests run with the system open). */
+    auth?: AuthConfig;
+    loginAttempts?: number;
+    trustProxyHops?: number;
+  } = {},
 ) {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl?.includes('_test')) throw new Error('Integration tests must run against the test database');
@@ -40,6 +50,9 @@ export async function createTestApp(
     // The practices of the audiencia simulator are many in one test file: the real limits are checked by one test of their own.
     hearingLimits: options.hearingLimits ?? { turns: 10_000, heavy: 10_000 },
     ...(options.now && { now: options.now }),
+    ...(options.auth && { auth: options.auth }),
+    ...(options.loginAttempts && { loginAttempts: options.loginAttempts }),
+    ...(options.trustProxyHops && { trustProxyHops: options.trustProxyHops }),
   });
 
   return {

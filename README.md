@@ -18,7 +18,7 @@ Sistema de inteligencia artificial personal para un abogado: una **biblioteca co
 | 7 | Vigía normativo (Boletín Oficial: Nación y Misiones) | ✅ Hecha |
 | 8 | Simulador de audiencia | ✅ Hecha |
 | 9 | Estimador de probabilidad de éxito | ✅ Hecha (en forma de orientación, sin porcentajes: ver D24) |
-| 10 | Hosting y despliegue (VPS + Docker Compose + Tailscale) | Pendiente |
+| 10 | Hosting y despliegue (VPS + Docker Compose + Tailscale) | En curso: ya tiene usuario y contraseña, HTTPS y copias de seguridad cifradas; falta elegir el servidor y la anonimización (ver «Poner el sistema en línea») |
 
 Las decisiones técnicas y su justificación están en [docs/decisiones.md](docs/decisiones.md).
 
@@ -35,7 +35,8 @@ Las decisiones técnicas y su justificación están en [docs/decisiones.md](docs
 - **Contradicciones:** cada expediente reúne sus **documentos** (las pruebas: declaraciones de testigos y de las partes, contratos, recibos, cartas documento, informes…), que se suben desde su pestaña «Documentos» (quedan también en la biblioteca, con el tipo «Prueba») o se vinculan desde la biblioteca; quitarlos del expediente no los borra. En la pestaña «Contradicciones» elegís de 2 a 8 documentos y, si querés, qué revisar primero, y la IA los compara y propone las contradicciones que encuentra —fechas, montos o afirmaciones que no pueden ser ciertas a la vez—, cada una con la frase de cada documento y un enlace al original. El servidor busca cada frase en el texto del documento (si no la encuentra, la marca), las que ya guardaste vienen sin tildar y nada se guarda hasta que confirmás cuáles conservar. Las guardadas se pueden anotar, eliminar y copiar como resumen para pegar en un escrito. La búsqueda no es exhaustiva: dos corridas sobre los mismos documentos pueden señalar cosas distintas, y que no encuentre nada no significa que no haya contradicciones.
 - **Normativa:** un vigía lee dos boletines: el **Boletín Oficial de la República Argentina** (primera sección: leyes, decretos, resoluciones, disposiciones y convenios colectivos de trabajo) y el **Boletín Oficial de la Provincia de Misiones** (decretos, resoluciones y leyes provinciales, que el sitio publica en un PDF por día), cada tres horas y cada vez que abrís la pantalla después de una pausa larga, y te avisa cuando sale una norma que toca un tema que seguís. En «Temas» elegís **áreas de práctica** enteras (Laboral, Civil, Comercial…) o armás **temas propios** con palabras clave. La IA lee el comienzo y el primer artículo de cada norma y señala las que afectan a esos temas: cada alerta dice qué establece la norma, por qué importa, la frase de la norma que lo respalda (el servidor verifica que exista en el texto; si no la encuentra, la alerta pasa a relevancia media y te avisa) y a cuántos de tus clientes y expedientes abiertos de esa área alcanza. Podés marcarla como vista, descartarla (y restaurarla) o abrir la norma en el Boletín (cada alerta dice si es de Nación o de Misiones); el menú muestra un globito rojo con las novedades sin ver. En «Boletín» elegís Nación o Misiones y recorrés todo lo que se publicó cada día, con búsqueda y filtro por rubro. Sin la clave de Gemini también funciona, pero solo por palabras clave (con más ruido). Lee solo lo que los sitios permiten (del nacional, no la segunda sección; del de Misiones, solo los decretos, resoluciones y leyes de la primera sección de cada PDF: sin suplementos, municipalidades ni edictos), de a una página por vez y despacio, y si un sitio le pide esperar, espera y reintenta solo. Cada boletín se revisa por separado: si uno falla, el otro sigue.
 - **Audiencia:** practicás tu argumentación oral frente a una IA que hace de **juez** o de **abogado de la contraparte**. Elegís el escrito (un borrador, un documento de tu biblioteca o un texto pegado) y, si querés, un expediente (la IA lee su carátula y sus actuaciones), a quién representás y qué querés practicar. La IA abre la audiencia y conversás turno por turno: pregunta, repregunta cuando esquivás algo y objeta cuando lo que decís no coincide con tu escrito. Al terminar recibís una **devolución**: un resumen, lo que salió bien, lo que conviene reforzar (con la frase que dijiste y por qué importa) y qué tener listo; el servidor verifica que cada frase citada exista en lo que dijiste o en tu escrito, y la que no encuentra no se muestra. Cada práctica queda guardada con su conversación y su devolución. La IA no debe citar normas ni fallos que no estén en tu material; si se le escapa alguno (o afirma qué «exige la ley»), ese turno queda marcado para que lo verifiques. Tu respuesta se guarda apenas la enviás: si Gemini falla, tocás «Reintentar» y no escribís de nuevo. Es una práctica: nada de lo que dice la IA tiene efecto legal ni es un consejo. Desde un borrador y desde un expediente hay un botón «Practicar audiencia».
-- **Estimador:** describís los hechos de un caso (y, si querés, lo que se reclama y un expediente) y el sistema busca en tu biblioteca **fallos parecidos** (solo los de tipo Jurisprudencia), la IA lee cada uno y dice si es comparable y hacia qué lado inclina, con la frase del fallo que lo muestra (el servidor verifica que exista). **No da porcentajes:** el servidor cuenta los fallos comparables y verificados y dice si son mayormente favorables, divididos, mayormente desfavorables o insuficientes (con menos de 3 no concluye). Siempre muestra el aviso de que es una orientación y no una predicción confiable, y los datos que cambiarían la comparación. Nada se guarda hasta que tocás «Guardar estimación»; las guardadas admiten una nota.
+- **Estimador:** describís los hechos de un caso (y, si querés, lo que se reclama y un expediente) y el sistema busca en tu biblioteca **fallos parecidos** (solo los de tipo Jurisprudencia), la IA lee cada uno y dice si es comparable y hacia qué lado inclina, con la frase del fallo que lo muestra (el servidor verifica que exista). **No da porcentajes:** el servidor cuenta los fallos comparables y verificados y dice si son mayormente favorables, divididos, mayormente desfavorables o insuficientes (con menos de 3 no concluye). Los fallos pesan según el **tribunal** (Corte Suprema, tribunal superior, cámara o primera instancia) y la **fecha**: uno reciente de un tribunal superior pesa más que uno viejo de primera instancia; el tribunal y el año solo se toman si el fallo los dice. Siempre muestra el aviso de que es una orientación y no una predicción confiable, y los datos que cambiarían la comparación. Nada se guarda hasta que tocás «Guardar estimación»; las guardadas admiten una nota.
+- **Acceso:** usuario y contraseña (un solo usuario). Sin ellos, el sistema no deja ver nada; la sesión se cierra sola después de 12 horas sin usarla y se puede cerrar con «Cerrar sesión» en el menú. En tu computadora, mientras no definas la contraseña en el `.env`, queda abierto como antes; en producción es obligatoria. Ver «Poner el sistema en línea».
 - **Historial:** cada consulta queda registrada con su respuesta, las fuentes, el modelo y la versión del prompt. Los borradores también quedan registrados en la base con el texto original de la IA, aunque después los edites.
 - **API documentada** en `http://localhost:4000/api/docs` (Swagger).
 
@@ -132,18 +133,53 @@ Una imagen que no arranca no se publica. Además, Dependabot abre pull requests 
 **Usar las imágenes publicadas** (sin instalar Node ni compilar nada):
 
 1. Abrí Docker Desktop y esperá a que diga *Engine running*.
-2. En el `.env`, revisá `POSTGRES_PASSWORD` (para un uso real, poné una propia, solo con letras y números) y, si querés usar la IA, `GEMINI_API_KEY`.
+2. Generá tu usuario y contraseña (ver «Poner el sistema en línea», paso 1) y pegá las dos líneas en el `.env`. Revisá también `POSTGRES_PASSWORD` (para un uso real, poné una propia, solo con letras y números) y, si querés usar la IA, `GEMINI_API_KEY`.
 3. Bajá las imágenes y levantá todo:
 
    ```bash
    docker compose -f docker-compose.prod.yml up -d
    ```
 
-4. Abrí **http://localhost:8080**.
+4. Abrí **https://localhost**. El navegador avisa que el certificado no lo conoce (es uno propio que crea el sistema para probar): aceptá la advertencia. Con un dominio o con Tailscale el certificado es de verdad (ver abajo).
 
 La primera vez, la API descarga los modelos de búsqueda y de OCR (hace falta internet y tarda unos minutos). La base, los documentos y los modelos quedan en volúmenes de Docker propios, separados de los del entorno de desarrollo (`npm run dev`). Para pasar a la última versión publicada: `docker compose -f docker-compose.prod.yml pull` y de nuevo `up -d`. Para apagarlo: `docker compose -f docker-compose.prod.yml down` (los datos se conservan).
 
-Queda disponible solo en esta computadora: el sistema todavía no tiene usuarios ni contraseña, así que no lo expongas a internet antes de la Fase 10.
+Queda disponible solo en esta computadora mientras no cambies `BIND_ADDRESS`.
+
+## Poner el sistema en línea
+
+Todo se configura en el `.env` de la raíz y se levanta con `docker compose -f docker-compose.prod.yml up -d`.
+
+**1. Usuario y contraseña (obligatorio).** Corré `npm run auth:hash -w backend`: te pide el usuario y la contraseña (mínimo 12 caracteres; no se ve lo que escribís ni se guarda) y muestra dos líneas, `AUTH_USERNAME=…` y `AUTH_PASSWORD_HASH=…`. Pegalas en el `.env`. Lo que se guarda es un hash: la contraseña no se puede recuperar; si la perdés, generás otra. Tras 8 intentos fallidos en 15 minutos desde una misma dirección hay que esperar.
+
+**2. HTTPS.** Caddy atiende los puertos 80 y 443 y cifra la conexión. Elegí el certificado con `TLS_MODE` y la dirección con `SITE_ADDRESS`:
+
+| `TLS_MODE` | Certificado | Cuándo |
+| --- | --- | --- |
+| `internal` (por defecto) | Uno propio que crea Caddy | Probar en tu computadora (`SITE_ADDRESS=localhost`). El navegador avisa que no lo conoce |
+| `auto` | Let's Encrypt, automático | Servidor con un dominio propio apuntando a él y los puertos 80 y 443 abiertos (`SITE_ADDRESS=lex.tudominio.com`, `BIND_ADDRESS=0.0.0.0`) |
+| `files` | Tus archivos `./tls/cert.pem` y `./tls/key.pem` | Tailscale: en el servidor, `tailscale cert nombre.tu-red.ts.net` y copiá los dos archivos a `./tls/` (con `SITE_ADDRESS=nombre.tu-red.ts.net` y `BIND_ADDRESS` con la IP de Tailscale) |
+
+Otras variables: `HTTPS_PORT` y `HTTP_PORT` (por defecto 443 y 80). Con un certificado de verdad el sistema le dice al navegador que use siempre HTTPS (HSTS).
+
+**3. Copias de seguridad cifradas.** Cada 24 horas (y al arrancar) se guarda en `./backups/` un archivo `lexsearch-AAAAMMDD-HHMMSS.tar` que trae la base y los documentos, **cada parte cifrada** con una clave **pública**: en el servidor no está la clave para abrirlos, y nada se escribe sin cifrar. Se guardan las últimas 14, y las viejas solo se borran después de una copia buena. Es obligatorio: sin `BACKUP_AGE_RECIPIENT` en el `.env` el sistema no arranca. Para crear la clave:
+
+```bash
+docker run --rm alpine sh -c "apk add -q age && age-keygen"
+```
+
+Muestra una clave secreta (`AGE-SECRET-KEY-…`) y una pública (`age1…`). **Guardá la secreta fuera del servidor** (un administrador de contraseñas, un pendrive): sin ella las copias no se pueden abrir. Poné la pública en el `.env` como `BACKUP_AGE_RECIPIENT=age1…`. Opcionales: `BACKUP_DIR` (carpeta de las copias), `BACKUP_EVERY_HOURS` y `BACKUP_KEEP`. Llevate también copias a otro lugar (otro disco, otra computadora): una copia en el mismo servidor no sirve si el servidor se pierde.
+
+**Restaurar una copia** (con la clave secreta guardada en `clave.txt`):
+
+```bash
+mkdir -p restaurado/documentos
+docker run --rm -v "$PWD:/w" alpine sh -c "apk add -q age && cd /w/restaurado && tar -xf /w/backups/lexsearch-AAAAMMDD-HHMMSS.tar && age -d -i /w/clave.txt -o db.dump db.dump.age && age -d -i /w/clave.txt storage.tar.age | tar -x -C documentos"
+```
+
+Queda `restaurado/db.dump` (la base) y `restaurado/documentos/` (los archivos subidos). Para volver a cargar la base con el sistema levantado: `docker compose -f docker-compose.prod.yml exec -T db pg_restore -U lexsearch -d lexsearch --clean --if-exists < restaurado/db.dump`. Los documentos se copian a la carpeta del volumen `storage`.
+
+**Lo que todavía falta de la Fase 10:** elegir y contratar el servidor, y la capa de anonimización (hoy a Gemini viajan los nombres reales).
 
 ## Estructura
 
@@ -203,10 +239,10 @@ Cada módulo del backend sigue la misma separación de capas: `routes → contro
 ## Privacidad y seguridad
 
 - La biblioteca **no se envía a ningún servicio para indexarse ni para buscar**: el indexado usa un modelo local. A Gemini solo viajan la pregunta y los fragmentos relevantes de cada consulta; al redactar un borrador, también los datos del caso que cargaste, el texto del modelo base (o de los documentos que el asistente decida leer) y la ficha del cliente elegido; al tocar «Completar con IA» en una ficha, las notas de la reunión; al leer una cédula o resolución, el texto del documento; al importar actuaciones, el texto o el archivo que pegás; al buscar contradicciones, el texto completo de los documentos que elegís comparar; y al revisar los boletines oficiales, el comienzo y el primer artículo de normas públicas junto con los nombres y las palabras de los temas que seguís (nada de tus clientes); al estimar, los hechos que escribís, el expediente elegido (sin datos de los clientes) y el texto de los fallos parecidos; y al practicar una audiencia, el escrito que elegís, la carátula, el juzgado y las actuaciones del expediente (si elegís uno) y todo lo que escribís en la conversación. A los boletines oficiales no se les envía nada tuyo: solo se piden sus páginas y PDF públicos. Con el plan gratuito de la API, Google puede usar ese contenido para mejorar sus productos: activá la facturación antes de trabajar con datos reales de clientes (ver «Configurar Gemini»).
-- La API y la base escuchan solo en `127.0.0.1`: no son accesibles desde otras computadoras de la red. Con `docker-compose.prod.yml` pasa lo mismo: solo se publica la web, y solo en `127.0.0.1`.
+- La API y la base escuchan solo en `127.0.0.1`: no son accesibles desde otras computadoras de la red. Con `docker-compose.prod.yml` pasa lo mismo: solo se publica el HTTPS (Caddy), y solo en `127.0.0.1` mientras no cambies `BIND_ADDRESS`. Con la contraseña puesta, todo (también la documentación de la API) pide una sesión abierta; la cookie es `HttpOnly`, `SameSite=Strict` y solo viaja por HTTPS.
 - Los logs no registran contenido de documentos, preguntas ni respuestas (solo ids, cantidades y tiempos). Las consultas viajan en el cuerpo de la solicitud, nunca en la URL.
 - El contenido de los documentos se trata como **datos, nunca como instrucciones** (mitigación de inyección de prompt), y cada afirmación de la IA debe poder rastrearse a su fuente.
-- Antes de exponer el sistema fuera de esta computadora (Fase 10) hay que agregar autenticación, HTTPS, backups cifrados y la capa de anonimización. Ver [docs/decisiones.md](docs/decisiones.md).
+- Antes de usarlo con datos reales de clientes en un servidor, falta la capa de anonimización (Fase 10); el acceso con contraseña, el HTTPS y las copias cifradas ya están. Ver [docs/decisiones.md](docs/decisiones.md).
 
 ## Solución de problemas
 
@@ -236,7 +272,13 @@ Cada módulo del backend sigue la misma separación de capas: `routes → contro
 
 **«Tu última respuesta todavía no tiene contestación».** Gemini falló mientras la IA contestaba (saturado o sin cupo: en el plan gratuito son pocos pedidos por minuto). Tu respuesta quedó guardada: tocá «Reintentar». Si vuelve a fallar, esperá un minuto.
 
-**El estimador dice «insuficientes».** Necesita al menos 3 fallos comparables cuya frase se pueda verificar, y solo lee los documentos de tipo Jurisprudencia: revisá que tus fallos estén cargados con ese tipo y describí los hechos con más detalle. Un fallo marcado «no se pudo verificar la frase» no cuenta: abrilo y leelo. La orientación cuenta fallos, no los pondera (no distingue la jerarquía del tribunal, la fecha ni si fue revocado).
+**El estimador dice «insuficientes».** Necesita al menos 3 fallos comparables cuya frase se pueda verificar, y solo lee los documentos de tipo Jurisprudencia: revisá que tus fallos estén cargados con ese tipo y describí los hechos con más detalle. Un fallo marcado «no se pudo verificar la frase» no cuenta: abrilo y leelo. La orientación pesa los fallos por tribunal y fecha, pero no sabe si uno fue revocado ni distingue entre tribunales del mismo nivel.
+
+**«Demasiados intentos» al ingresar.** Después de 8 intentos fallidos en 15 minutos desde una misma dirección el ingreso se bloquea unos minutos. Esperá y probá de nuevo con la contraseña correcta. Si la perdiste, generá otra con `npm run auth:hash -w backend`, reemplazá las dos líneas del `.env` y reiniciá.
+
+**El navegador dice que la conexión no es privada.** Con `TLS_MODE=internal` el certificado lo creó el propio sistema y el navegador no lo conoce: es lo esperado para probar en tu computadora. Con un dominio (`TLS_MODE=auto`) o con Tailscale (`TLS_MODE=files`) el certificado es de verdad y el aviso no aparece.
+
+**`docker compose up` dice que falta `BACKUP_AGE_RECIPIENT`.** Es obligatoria: creá la clave y pegá la pública en el `.env` (ver «Poner el sistema en línea», paso 3). **No aparecen copias en `./backups`:** mirá el registro con `docker compose -f docker-compose.prod.yml logs backup`; si una copia falla, lo dice y reintenta a los 10 minutos.
 
 **La búsqueda no encuentra algo que sí está en un documento.** Probá con las palabras exactas del texto (esa búsqueda no tiene umbral). Si igual hace falta, bajá un poco `SEARCH_MIN_SIMILARITY` en `.env` (por defecto `0.8`; más bajo muestra más resultados, pero también algunos sin relación) y reiniciá.
 

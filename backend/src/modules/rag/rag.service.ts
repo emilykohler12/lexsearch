@@ -1,4 +1,4 @@
-import { AppError, ServiceUnavailableError } from '../../lib/errors.js';
+import { AppError, ServiceUnavailableError, safeErrorMessage } from '../../lib/errors.js';
 import type { Logger } from '../../lib/logger.js';
 import { CATEGORY_LABELS } from '../documents/documents.schemas.js';
 import type { EmbeddingProvider } from '../embeddings/embedding-provider.js';
@@ -98,6 +98,11 @@ export class RagService {
         matchedBy: (['semantic', 'keyword'] as const).filter((name) => ranks[name] !== undefined),
         similarity: nearest.find((hit) => hit.id === item.id)?.score ?? null,
       }));
+  }
+
+  /** The beginning of each document, by id. */
+  headings(documentIds: string[]): Promise<Map<string, string>> {
+    return this.deps.repository.firstFragments(documentIds);
   }
 
   async ask(input: AskInput): Promise<AskResult> {
@@ -206,7 +211,7 @@ export class RagService {
           promptVersion: prompt.version,
           durationMs: Date.now() - startedAt,
           status: 'FAILED',
-          errorMessage: error instanceof Error ? error.message : String(error),
+          errorMessage: safeErrorMessage(error),
         })
         .catch((logError: unknown) => logger.error({ err: logError }, 'Could not record failed interaction'));
       throw error;

@@ -11,7 +11,8 @@ const ORIENTATION_STYLES: Record<EstimateOrientation, string> = {
 };
 
 const DIRECTION_LABELS = { FAVORABLE: 'A favor', DESFAVORABLE: 'En contra', NEUTRO: 'Neutro' } as const;
-const COMPARABLE_LABELS = { SI: 'Comparable', PARCIAL: 'Comparable en parte', NO: 'No comparable' } as const;
+const LEVEL_LABELS = { CSJN: 'Corte Suprema', SUPERIOR: 'Tribunal superior', CAMARA: 'Cámara', PRIMERA: 'Primera instancia', DESCONOCIDO: 'Tribunal desconocido' } as const;
+const COMPARABLE_LABELS ={ SI: 'Comparable', PARCIAL: 'Comparable en parte', NO: 'No comparable' } as const;
 
 /** The result of an estimate, whether it is a proposal or one that was saved. The notice is always shown. */
 export function EstimateView({ label, notice, result }: { label: string; notice: string; result: EstimateResult }) {
@@ -33,6 +34,9 @@ export function EstimateView({ label, notice, result }: { label: string; notice:
         </p>
         {result.orientation === 'INSUFFICIENT' && result.searched > 0 && (
           <p className="mt-1 text-sm">Hacen falta al menos 3 antecedentes comparables y verificados, y que alguno incline hacia un lado.</p>
+        )}
+        {result.weighted.favorable + result.weighted.unfavorable > 0 && (
+          <p className="mt-1 text-xs">Los fallos de tribunales superiores y los más recientes pesan más: a favor suman {result.weighted.favorable.toLocaleString('es-AR')} y en contra {result.weighted.unfavorable.toLocaleString('es-AR')}.</p>
         )}
         {(counts.notComparable > 0 || counts.unverified > 0) && (
           <p className="mt-1 text-xs">
@@ -82,6 +86,12 @@ function AntecedentCard({ antecedent }: { antecedent: EstimateAntecedent }) {
         <span className="text-xs text-muted">{COMPARABLE_LABELS[antecedent.comparable]}</span>
         {antecedent.comparable !== 'NO' && <span className="rounded-full bg-paper px-2 py-0.5 text-xs ring-1 ring-line">{DIRECTION_LABELS[antecedent.direction]}</span>}
       </div>
+      <p className="text-xs text-muted">
+        {antecedent.court || LEVEL_LABELS[antecedent.level]}
+        {antecedent.court && antecedent.level !== 'DESCONOCIDO' && ` (${LEVEL_LABELS[antecedent.level]})`}
+        {antecedent.year ? ` · ${antecedent.year}` : ' · sin fecha'}
+        {antecedent.counted && antecedent.direction !== 'NEUTRO' && ` · pesa ${antecedent.weight.toLocaleString('es-AR')}`}
+      </p>
       {antecedent.holding && (
         <p className="text-sm">
           {antecedent.comparable !== 'NO' && !antecedent.counted && <span className="text-amber-800">Lectura de la IA sin frase verificada: </span>}

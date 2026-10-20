@@ -19,6 +19,7 @@ import {
 } from '../modules/deadlines/deadlines.schemas.js';
 import { updateDocumentSchema, uploadFieldsSchema } from '../modules/documents/documents.schemas.js';
 import { createDraftSchema, updateDraftSchema } from '../modules/drafts/drafts.schemas.js';
+import { loginSchema } from '../modules/auth/auth.controller.js';
 import { analyzeEstimateSchema, saveEstimateSchema, updateEstimateSchema } from '../modules/estimates/estimates.schemas.js';
 import { createHearingSchema, sendTurnSchema } from '../modules/hearings/hearings.schemas.js';
 import { askBodySchema, searchBodySchema } from '../modules/rag/rag.schemas.js';
@@ -70,6 +71,7 @@ export function buildOpenApiDocument() {
       { name: 'Normativa', description: 'Vigía normativo: normas nuevas de los boletines oficiales (Nación y Provincia de Misiones) que tocan las áreas y los temas que el abogado sigue' },
       { name: 'Borradores', description: 'Escritos y contratos redactados por el agente con la biblioteca como referencia' },
       { name: 'Audiencia', description: 'Simulador de audiencia: el abogado practica frente a una IA que hace de juez o de abogado de la contraparte y recibe una devolución' },
+      { name: 'Acceso', description: 'Usuario y contraseña del abogado: sin una sesión abierta, todo lo demás responde 401 (salvo el estado del sistema)' },
       { name: 'Estimador', description: 'Orientación sobre qué tan favorables son los antecedentes de jurisprudencia de la biblioteca para un caso parecido (no es una predicción)' },
       { name: 'Historial', description: 'Interacciones registradas con los módulos de IA' },
     ],
@@ -466,6 +468,21 @@ export function buildOpenApiDocument() {
             'La devolución resume cómo se desenvolvió el abogado, lo que salió bien, lo que conviene reforzar y qué tener listo. Cada frase citada se busca en lo que dijo el abogado o en su escrito: solo se muestra la que se encuentra. Si ya estaba terminada, devuelve la misma. Hasta 10 por minuto.',
           responses: { 200: { description: 'La práctica terminada, con la devolución' }, 400: errorResponse, 404: errorResponse, 429: errorResponse, 502: errorResponse },
         },
+      },
+      '/api/auth/me': {
+        get: { tags: ['Acceso'], summary: 'Si hay que iniciar sesión y si ya está iniciada', responses: { 200: { description: 'authRequired, authenticated y username' } } },
+      },
+      '/api/auth/login': {
+        post: {
+          tags: ['Acceso'],
+          summary: 'Iniciar sesión',
+          description: 'Abre una sesión y la deja en una cookie HttpOnly con SameSite=Strict. Responde igual a un usuario inexistente que a una contraseña incorrecta. Después de 8 intentos fallidos en 15 minutos hay que esperar.',
+          requestBody: { required: true, ...json(jsonSchema(loginSchema)) },
+          responses: { 200: { description: 'Sesión abierta' }, 400: errorResponse, 401: errorResponse, 429: errorResponse },
+        },
+      },
+      '/api/auth/logout': {
+        post: { tags: ['Acceso'], summary: 'Cerrar la sesión', responses: { 204: { description: 'Sesión cerrada' } } },
       },
       '/api/estimates': {
         get: { tags: ['Estimador'], summary: 'Listar las estimaciones guardadas (la más reciente primero)', responses: { 200: { description: 'OK' } } },

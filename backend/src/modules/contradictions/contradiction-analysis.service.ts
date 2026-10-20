@@ -1,5 +1,5 @@
 import type { Document } from '../../generated/prisma/client.js';
-import { BadRequestError, NotFoundError, ServiceUnavailableError } from '../../lib/errors.js';
+import { BadRequestError, NotFoundError, ServiceUnavailableError, safeErrorMessage } from '../../lib/errors.js';
 import type { Logger } from '../../lib/logger.js';
 import type { CasesRepository } from '../cases/cases.repository.js';
 import type { DocumentTextReader } from '../documents/document-text.js';
@@ -133,7 +133,7 @@ export class ContradictionAnalysisService {
           promptVersion: prompt.version,
           durationMs: Date.now() - startedAt,
           status: 'FAILED',
-          errorMessage: error instanceof Error ? error.message : String(error),
+          errorMessage: safeErrorMessage(error),
         })
         .catch((logError: unknown) => logger.error({ err: logError }, 'Could not record failed interaction'));
       throw error;

@@ -16,6 +16,7 @@ import type {
 
 export const queryKeys = {
   health: ['health'] as const,
+  auth: ['auth'] as const,
   // Everything about documents starts with 'documents': one invalidation refreshes the library and the ones of an expediente.
   documents: ['documents'] as const,
   documentList: (filters: { caseId?: string | undefined }) => ['documents', 'list', filters] as const,
@@ -683,6 +684,35 @@ export function useDeleteEstimate() {
     onSuccess: (_data, id) => {
       queryClient.removeQueries({ queryKey: queryKeys.estimate(id), exact: true });
       void queryClient.invalidateQueries({ queryKey: queryKeys.estimates, exact: true });
+    },
+  });
+}
+
+/** Whether the lawyer has to log in and whether she already did. */
+export function useAuth() {
+  return useQuery({ queryKey: queryKeys.auth, queryFn: api.authState, retry: false, refetchOnWindowFocus: false, refetchInterval: (query) => (query.state.status === 'error' ? 10_000 : false) });
+}
+
+export function useLogin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.login,
+    onSuccess: (state) => {
+      // Whatever failed with 401 before the login is asked again.
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' });
+      queryClient.setQueryData(queryKeys.auth, state);
+    },
+  });
+}
+
+export function useLogout() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.logout,
+    onSettled: () => {
+      // Nothing of the lawyer's stays in the memory of the page.
+      queryClient.setQueryData(queryKeys.auth, { authRequired: true, authenticated: false, username: null });
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' });
     },
   });
 }

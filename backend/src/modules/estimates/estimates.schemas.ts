@@ -24,6 +24,10 @@ export type Orientation = keyof typeof ORIENTATIONS;
 export const COMPARABILITIES = ['SI', 'PARCIAL', 'NO'] as const;
 export type Comparability = (typeof COMPARABILITIES)[number];
 
+/** The court that issued a ruling, from the highest to the lowest. */
+export const COURT_LEVELS = ['CSJN', 'SUPERIOR', 'CAMARA', 'PRIMERA', 'DESCONOCIDO'] as const;
+export type CourtLevel = (typeof COURT_LEVELS)[number];
+
 export const DIRECTIONS = ['FAVORABLE', 'DESFAVORABLE', 'NEUTRO'] as const;
 export type Direction = (typeof DIRECTIONS)[number];
 
@@ -52,6 +56,13 @@ const antecedentSchema = z.object({
   quoteVerified: z.boolean(),
   similarities: z.array(text(300)).max(4),
   differences: z.array(text(300)).max(4),
+  /** The court as the ruling names it and its level; unknown when the ruling doesn't say (old results have neither). */
+  court: text(200).default(''),
+  level: z.enum(COURT_LEVELS).default('DESCONOCIDO'),
+  /** Year of the ruling, only when it is written in it. */
+  year: z.number().int().nullable().default(null),
+  /** What the ruling weighs in the orientation: its court times how recent it is. */
+  weight: z.number().default(1),
   /** Whether it entered the count (comparable, verified, and with a direction). */
   counted: z.boolean(),
 });
@@ -67,6 +78,8 @@ export const estimateResultSchema = z.object({
     notComparable: z.number().int(),
     unverified: z.number().int(),
   }),
+  /** What the favorable and the unfavorable rulings add up to, by court and date. */
+  weighted: z.object({ favorable: z.number(), unfavorable: z.number() }).default({ favorable: 0, unfavorable: 0 }),
   /** Rulings of the library that were read. */
   searched: z.number().int(),
   antecedents: z.array(antecedentSchema),

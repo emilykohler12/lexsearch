@@ -44,3 +44,18 @@ export class UpstreamError extends AppError {
     super(statusCode, code, message);
   }
 }
+
+/**
+ * The message of a failure as it may be stored in the history of interactions: only those written for the
+ * user. Anything else (a library error, a Prisma error, an SDK message) could repeat part of the case.
+ */
+export function safeErrorMessage(error: unknown): string {
+  return error instanceof AppError ? error.message : 'Error interno';
+}
+
+/** No session, or it expired: the screen asks for the password again. */
+export class UnauthorizedError extends AppError {
+  constructor(message = 'Iniciá sesión para continuar') {
+    super(401, 'UNAUTHORIZED', message);
+  }
+}

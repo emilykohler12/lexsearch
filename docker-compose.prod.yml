@@ -1,13 +1,17 @@
-# LexSearch completo con las imágenes publicadas en GitHub (ghcr.io): base de datos + API + web.
+# LexSearch completo con las imágenes publicadas en GitHub (ghcr.io): base de datos + API + web + HTTPS + backups.
 #
 #   docker compose -f docker-compose.prod.yml pull     (baja las versiones nuevas)
 #   docker compose -f docker-compose.prod.yml up -d
 #
-# Lee POSTGRES_PASSWORD (obligatoria) y GEMINI_API_KEY del archivo .env de la raíz.
+# Lee estas variables del archivo .env de la raíz (el README explica cada una):
+#   obligatorias: POSTGRES_PASSWORD, AUTH_USERNAME y AUTH_PASSWORD_HASH (se generan con `npm run auth:hash -w backend`)
+#                 y BACKUP_AGE_RECIPIENT (la clave pública de las copias de seguridad: ver el README)
+#   opcionales:   GEMINI_API_KEY, SITE_ADDRESS, TLS_MODE, BIND_ADDRESS, HTTPS_PORT, HTTP_PORT,
+#                 BACKUP_DIR, BACKUP_EVERY_HOURS, BACKUP_KEEP
 # Para un uso real cambiá POSTGRES_PASSWORD por una propia (solo letras y números).
 #
-# La web queda en http://localhost:8080 y SOLO en esta computadora (127.0.0.1): el sistema todavía
-# no tiene usuarios ni contraseña, así que no se expone a la red hasta la Fase 10.
+# Se entra por HTTPS (https://localhost si no cambiás nada) y SOLO desde esta computadora (127.0.0.1) mientras
+# no cambies BIND_ADDRESS: antes de exponerlo a una red hay que elegir el certificado (ver «Poner el sistema en línea»).
 # Es independiente de docker-compose.yml (el entorno de desarrollo): tiene otra base de datos y otros volúmenes.
 name: lexsearch-prod
 
@@ -35,7 +39,13 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://lexsearch:${POSTGRES_PASSWORD}@db:5432/lexsearch
-      CORS_ORIGIN: http://localhost:${WEB_PORT:-8080}
+      CORS_ORIGIN: https://${SITE_ADDRESS:-localhost}
+      AUTH_USERNAME: ${AUTH_USERNAME:?Falta AUTH_USERNAME en el archivo .env (generalo con npm run auth:hash -w backend)}
+      AUTH_PASSWORD_HASH: ${AUTH_PASSWORD_HASH:?Falta AUTH_PASSWORD_HASH en el archivo .env (generalo con npm run auth:hash -w backend)}
+      AUTH_IDLE_HOURS: ${AUTH_IDLE_HOURS:-12}
+      # Delante de la API hay dos proxies (Caddy y nginx): así ve la dirección real de quien consulta y el límite de
+      # intentos de ingreso es por persona y no uno solo para todos.
+      TRUST_PROXY_HOPS: "2"
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
       GEMINI_FALLBACK_MODELS: ${GEMINI_FALLBACK_MODELS:-gemini-3.5-flash}
@@ -45,16 +55,121 @@ services:
       - storage:/app/backend/storage
       - models:/app/backend/.cache
 
+  # La web (nginx) ya no se publica: se entra por Caddy, que pone el HTTPS.
   web:
     image: ${WEB_IMAGE:-ghcr.io/emilykohler12/lexsearch-web:latest}
     restart: unless-stopped
     depends_on:
       api:
         condition: service_healthy
+
+  # HTTPS. TLS_MODE elige el certificado:
+  #   internal (por defecto) → uno propio que Caddy crea: sirve para probar; el navegador avisa que no lo conoce.
+  #   auto  → uno de Let's Encrypt, para un dominio propio que apunte a este servidor (necesita los puertos 80 y 443 abiertos).
+  #   files → los archivos ./tls/cert.pem y ./tls/key.pem (por ejemplo, los de `tailscale cert`).
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
     ports:
-      - "127.0.0.1:${WEB_PORT:-8080}:80"
+      - "${BIND_ADDRESS:-127.0.0.1}:${HTTPS_PORT:-443}:443"
+      - "${BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-80}:80"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+      TLS_MODE: ${TLS_MODE:-internal}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+      - ${TLS_DIR:-./tls}:/tls:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        case "$$TLS_MODE" in
+          internal) TLS_LINE="tls internal"; HSTS="" ;;
+          files)    TLS_LINE="tls /tls/cert.pem /tls/key.pem"; HSTS='Strict-Transport-Security "max-age=31536000"' ;;
+          auto)     TLS_LINE=""; HSTS='Strict-Transport-Security "max-age=31536000"' ;;
+          *) echo "TLS_MODE tiene que ser internal, auto o files" >&2; exit 1 ;;
+        esac
+        # El HSTS solo con un certificado de verdad: con el propio (localhost) el navegador obligaría a usar HTTPS en
+        # todos los programas de esta computadora que usen «localhost».
+        cat > /etc/caddy/Caddyfile <<EOF
+        $$SITE_ADDRESS {
+          $$TLS_LINE
+          encode zstd gzip
+          header {
+            X-Content-Type-Options nosniff
+            Referrer-Policy no-referrer
+            -Server
+            $$HSTS
+          }
+          request_body {
+            max_size 60MB
+          }
+          reverse_proxy web:80
+        }
+        EOF
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+
+  # Copia cifrada de la base y de los documentos, al arrancar y después cada BACKUP_EVERY_HOURS horas.
+  # Se cifra con una clave PÚBLICA (BACKUP_AGE_RECIPIENT, obligatoria: sin copias el sistema no arranca): para
+  # abrir una copia hace falta la clave privada, que no está en este servidor.
+  backup:
+    image: postgres:17-alpine
+    restart: on-failure
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?Falta BACKUP_AGE_RECIPIENT en el archivo .env (el README explica cómo crear la clave de las copias de seguridad)}
+      BACKUP_EVERY_HOURS: ${BACKUP_EVERY_HOURS:-24}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+    volumes:
+      - storage:/storage:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        apk add --no-cache age bash > /dev/null
+        # El script va en bash por el «pipefail»: si falla la base o el tar, falla toda la copia
+        # (en «sh» una tubería da por buena la copia si solo falla su primer paso).
+        cat > /backup.sh <<'SCRIPT'
+        set -uo pipefail
+        case "$${BACKUP_KEEP:-14}" in ''|*[!0-9]*) BACKUP_KEEP=14 ;; esac
+        case "$${BACKUP_EVERY_HOURS:-24}" in ''|*[!0-9]*|0) BACKUP_EVERY_HOURS=24 ;; esac
+        [ -n "$${BACKUP_AGE_RECIPIENT:-}" ] || { echo "Falta BACKUP_AGE_RECIPIENT" >&2; exit 1; }
+        while true; do
+          stamp=$$(date -u +%Y%m%d-%H%M%S)
+          work=$$(mktemp -d)
+          final="/backups/lexsearch-$$stamp.tar"
+          # Nada se escribe sin cifrar: la base y los documentos pasan por «age» apenas se generan y el archivo
+          # final solo junta las dos partes ya cifradas. Una parte vacía o un tar cortado cuentan como falla.
+          if pg_dump -h db -U lexsearch -Fc lexsearch | age -r "$$BACKUP_AGE_RECIPIENT" -o "$$work/db.dump.age" \
+            && tar -C /storage -cf - . | age -r "$$BACKUP_AGE_RECIPIENT" -o "$$work/storage.tar.age" \
+            && [ -s "$$work/db.dump.age" ] && [ -s "$$work/storage.tar.age" ] \
+            && tar -C "$$work" -cf "$$final.partial" db.dump.age storage.tar.age \
+            && tar -tf "$$final.partial" > /dev/null \
+            && mv "$$final.partial" "$$final"; then
+            echo "Copia lista: $$(basename "$$final")"
+            # Solo después de una copia buena se borran las más viejas: se guardan las últimas BACKUP_KEEP.
+            ls -1t /backups/lexsearch-*.tar 2> /dev/null | tail -n +$$((BACKUP_KEEP + 1)) | xargs -r rm -f
+            rm -rf "$$work"
+            sleep $$((BACKUP_EVERY_HOURS * 3600))
+          else
+            echo "La copia falló; se vuelve a intentar en 10 minutos." >&2
+            rm -rf "$$work" "$$final.partial"
+            sleep 600
+          fi
+        done
+        SCRIPT
+        exec bash /backup.sh
 
 volumes:
   pgdata:
   storage:
   models:
+  caddy_data:
+  caddy_config:

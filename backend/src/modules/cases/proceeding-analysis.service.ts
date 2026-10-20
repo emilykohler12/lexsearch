@@ -1,5 +1,5 @@
 import { rm } from 'node:fs/promises';
-import { BadRequestError, NotFoundError, ServiceUnavailableError } from '../../lib/errors.js';
+import { BadRequestError, NotFoundError, ServiceUnavailableError, safeErrorMessage } from '../../lib/errors.js';
 import type { Logger } from '../../lib/logger.js';
 import { toIsoDate } from '../calendar/dates.js';
 import type { IncomingFile } from '../documents/documents.service.js';
@@ -104,7 +104,7 @@ export class ProceedingAnalysisService {
             promptVersion: prompt.version,
             durationMs: Date.now() - startedAt,
             status: 'FAILED',
-            errorMessage: error instanceof Error ? error.message : String(error),
+            errorMessage: safeErrorMessage(error),
           })
           .catch((logError: unknown) => logger.error({ err: logError }, 'Could not record failed interaction'));
         throw error;

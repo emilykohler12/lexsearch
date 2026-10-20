@@ -17,7 +17,7 @@ export const PROMPT_VERSIONS = {
   normativeRelevance: 'normative-relevance.v1',
   hearingSimulator: 'hearing-simulator.v1',
   hearingFeedback: 'hearing-feedback.v1',
-  outcomeEstimate: 'outcome-estimate.v1',
+  outcomeEstimate: 'outcome-estimate.v2',
 } as const;
 
 export interface Prompt {

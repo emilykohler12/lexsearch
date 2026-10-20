@@ -1,4 +1,4 @@
-import { UpstreamError, ServiceUnavailableError } from '../../lib/errors.js';
+import { UpstreamError, ServiceUnavailableError, safeErrorMessage } from '../../lib/errors.js';
 import type { Logger } from '../../lib/logger.js';
 import type { InteractionsRepository } from '../interactions/interactions.repository.js';
 import type { LlmProvider } from '../llm/llm-provider.js';
@@ -152,7 +152,7 @@ export class HearingSimulator {
         promptVersion,
         durationMs: Date.now() - startedAt,
         status: 'FAILED',
-        errorMessage: error instanceof Error ? error.message : String(error),
+        errorMessage: safeErrorMessage(error),
       })
       .catch((logError: unknown) => this.deps.logger.error({ err: logError }, 'Could not record a failed interaction'));
   }
