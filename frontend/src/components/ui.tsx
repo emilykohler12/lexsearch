@@ -1,5 +1,6 @@
 import { CircleCheck, CircleX, Info, LoaderCircle, TriangleAlert, X } from 'lucide-react';
 import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { NETWORK_ERROR_MESSAGE } from '../api/client';
 import type { DocumentCategory, DocumentStatus, PracticeArea } from '../api/types';
 import { CATEGORY_LABELS, PRACTICE_AREA_LABELS, STATUS_LABELS } from '../lib/format';
 
@@ -31,6 +32,8 @@ export function Alert({
   children: ReactNode;
   onClose?: () => void;
 }) {
+  // With the system down the banner of the menu already says it: only that one is shown.
+  if (children === NETWORK_ERROR_MESSAGE) return null;
   const { box, icon: Icon } = ALERT_STYLES[tone];
   return (
     <div role={tone === 'error' ? 'alert' : 'status'} className={`flex gap-3 rounded-lg border px-4 py-3 text-sm ${box}`}>

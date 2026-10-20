@@ -6,7 +6,7 @@ import { Alert, Spinner } from '../../components/ui';
 import { formatDay, plural } from '../../lib/format';
 
 // Photos and scans are read with OCR.
-const ACCEPT = '.pdf,.docx,.txt,.jpg,.jpeg,.png,.webp,.tif,.tiff';
+const ACCEPT = '.pdf,.docx,.doc,.pptx,.svg,.txt,.jpg,.jpeg,.png,.webp,.tif,.tiff';
 
 /**
  * Reads a cédula or resolution and proposes the terms it grants. The file is read and thrown

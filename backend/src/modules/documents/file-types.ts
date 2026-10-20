@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-export type SupportedFileKind = 'pdf' | 'docx' | 'text' | 'image';
+export type SupportedFileKind = 'pdf' | 'docx' | 'doc' | 'pptx' | 'svg' | 'text' | 'image';
 
 interface FileTypeInfo {
   kind: SupportedFileKind;
@@ -13,6 +13,13 @@ const BY_EXTENSION: Record<string, FileTypeInfo> = {
     kind: 'docx',
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   },
+  '.doc': { kind: 'doc', mimeType: 'application/msword' },
+  '.pptx': {
+    kind: 'pptx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  },
+  // A drawing: only the text it contains is read (see extractSvg).
+  '.svg': { kind: 'svg', mimeType: 'image/svg+xml' },
   '.txt': { kind: 'text', mimeType: 'text/plain; charset=utf-8' },
   '.md': { kind: 'text', mimeType: 'text/markdown; charset=utf-8' },
   // Photos and scans: their text is read with OCR.
@@ -34,9 +41,9 @@ export function detectFileType(originalName: string): FileTypeInfo {
   const info = BY_EXTENSION[extension];
   if (info) return info;
 
-  if (extension === '.doc') {
+  if (extension === '.ppt') {
     throw new UnsupportedFileError(
-      `"${originalName}": los archivos .doc (Word 97-2003) no son compatibles. Guardalo como .docx o PDF desde Word y volvé a subirlo.`,
+      `"${originalName}": los archivos .ppt (PowerPoint 97-2003) no son compatibles. Guardalo como .pptx o PDF desde PowerPoint y volvé a subirlo.`,
     );
   }
   if (extension === '.heic' || extension === '.heif') {
@@ -63,16 +70,25 @@ function isSupportedImage(head: Buffer): boolean {
   );
 }
 
+const OLE_HEADER = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]; // Word 97-2003 container
+
+/** An SVG is text that opens an <svg> element (after an optional XML declaration, comments or a doctype). */
+const isSvg = (head: Buffer) => !head.includes(0x00) && /<svg[\s>]/i.test(head.subarray(0, 4096).toString('utf8'));
+
 /** Rejects files whose bytes don't match their extension (e.g. an .exe renamed to .pdf). */
 export function assertContentMatches(kind: SupportedFileKind, head: Buffer, originalName: string): void {
   const ok =
     kind === 'pdf'
       ? head.subarray(0, 1024).includes('%PDF-')
-      : kind === 'docx'
+      : kind === 'docx' || kind === 'pptx'
         ? startsWith(head, [0x50, 0x4b, 0x03, 0x04]) // ZIP container
-        : kind === 'image'
-          ? isSupportedImage(head)
-          : !head.includes(0x00); // plain text has no NUL bytes
+        : kind === 'doc'
+          ? startsWith(head, OLE_HEADER)
+          : kind === 'svg'
+            ? isSvg(head)
+            : kind === 'image'
+              ? isSupportedImage(head)
+              : !head.includes(0x00); // plain text has no NUL bytes
 
   if (!ok) {
     throw new UnsupportedFileError(`"${originalName}": el contenido del archivo no coincide con su extensión.`);

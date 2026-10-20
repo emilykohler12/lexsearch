@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import JSZip from 'jszip';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestApp, makeImage, makePdf, makeScannedPdf } from '../helpers/test-app.js';
@@ -49,13 +50,44 @@ describe('documents API', () => {
     const res = await request(ctx.app)
       .post('/api/documents')
       .attach('files', Buffer.from('MZ binary'), 'programa.pdf')
-      .attach('files', Buffer.from('x'), 'viejo.doc');
+      .attach('files', Buffer.from('x'), 'viejo.ppt');
 
     expect(res.status).toBe(200);
     expect(res.body.results).toEqual([
       { status: 'rejected', originalName: 'programa.pdf', message: expect.stringMatching(/no coincide/) },
-      { status: 'rejected', originalName: 'viejo.doc', message: expect.stringMatching(/\.docx o PDF/) },
+      { status: 'rejected', originalName: 'viejo.ppt', message: expect.stringMatching(/\.pptx o PDF/) },
     ]);
+  });
+
+  it('indexes a PowerPoint slide by slide and an SVG by its text, and serves the SVG sandboxed', async () => {
+    const zip = new JSZip();
+    zip.file('ppt/slides/slide1.xml', '<p:sld><a:p><a:r><a:t>Demanda por despido</a:t></a:r></a:p></p:sld>');
+    zip.file('ppt/slides/slide2.xml', '<p:sld><a:p><a:r><a:t>El plazo para contestar es de quince días</a:t></a:r></a:p></p:sld>');
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script><text>Croquis del lugar del accidente de tránsito</text></svg>';
+
+    const res = await request(ctx.app)
+      .post('/api/documents')
+      .attach('files', await zip.generateAsync({ type: 'nodebuffer' }), 'charla.pptx')
+      .attach('files', Buffer.from(svg), 'croquis.svg');
+    expect(res.body.results.map((r: { status: string }) => r.status)).toEqual(['created', 'created']);
+    await ctx.queue.idle();
+
+    const [deck, drawing] = res.body.results.map((r: { document: { id: string } }) => r.document.id);
+    expect((await request(ctx.app).get(`/api/documents/${deck}`)).body.document).toMatchObject({ status: 'READY', pageCount: 2 });
+    const chunks = await ctx.db.documentChunk.findMany({ where: { documentId: drawing } });
+    expect(chunks.map((c) => c.content).join(' ')).toContain('Croquis del lugar');
+    expect(chunks.map((c) => c.content).join(' ')).not.toContain('alert');
+
+    const file = await request(ctx.app).get(`/api/documents/${drawing}/file`);
+    expect(file.headers['content-type']).toContain('image/svg+xml');
+    expect(file.headers['content-security-policy']).toContain('sandbox');
+  });
+
+  it('fails an SVG that is only a drawing with a message that says what to do', async () => {
+    const res = await request(ctx.app).post('/api/documents').attach('files', Buffer.from('<svg><rect width="5"/></svg>'), 'dibujo.svg');
+    await ctx.queue.idle();
+    const detail = await request(ctx.app).get(`/api/documents/${res.body.results[0].document.id}`);
+    expect(detail.body.document).toMatchObject({ status: 'FAILED', errorMessage: expect.stringMatching(/PNG o PDF/) });
   });
 
   it('keeps accented file names and indexes plain text files', async () => {

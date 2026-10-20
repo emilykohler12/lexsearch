@@ -59,6 +59,9 @@ export class ApiError extends Error {
   }
 }
 
+/** The system is unreachable. The banner of the menu already says so: a screen doesn't repeat it (see Alert). */
+export const NETWORK_ERROR_MESSAGE = 'Sistema caído: no hay conexión con el servidor. Probá de nuevo en unos minutos.';
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const isJson = typeof init.body === 'string';
   let response: Response;
@@ -68,7 +71,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       headers: { ...(isJson ? { 'Content-Type': 'application/json' } : {}), ...init.headers },
     });
   } catch {
-    throw new ApiError(0, 'NETWORK', 'No se pudo conectar con el servidor de LexSearch. ¿Está corriendo `npm run dev`?');
+    throw new ApiError(0, 'NETWORK', NETWORK_ERROR_MESSAGE);
   }
 
   if (response.status === 204) return undefined as T;
@@ -90,7 +93,7 @@ export const api = {
   async health(): Promise<Health> {
     // 503 still carries the status body (e.g. database down), so read it either way.
     const response = await fetch('/api/health').catch(() => null);
-    if (!response) throw new ApiError(0, 'NETWORK', 'Servidor no disponible');
+    if (!response) throw new ApiError(0, 'NETWORK', NETWORK_ERROR_MESSAGE);
     return (await response.json()) as Health;
   },
 

@@ -7,7 +7,7 @@ import { Alert, Spinner } from '../../components/ui';
 import { formatDay, plural, PROCEEDING_KIND_LABELS, PROCEEDING_KINDS } from '../../lib/format';
 
 // Photos and scans are read with OCR.
-const ACCEPT = '.pdf,.docx,.txt,.md,.jpg,.jpeg,.png,.webp,.tif,.tiff';
+const ACCEPT = '.pdf,.docx,.doc,.pptx,.svg,.txt,.md,.jpg,.jpeg,.png,.webp,.tif,.tiff';
 
 interface Row {
   key: number;

@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router';
+import { NETWORK_ERROR_MESSAGE } from '../api/client';
 import { useHealth, useNormativeUnread, useNotifications } from '../api/hooks';
 
 type Badge = 'deadlines' | 'normative';
@@ -178,7 +179,7 @@ function MobileHeader() {
 /** Problems that stop LexSearch from working; empty while everything is fine. */
 function useSystemProblems(): string[] {
   const { data: health, isError } = useHealth();
-  if (isError) return ['Sin conexión con el servidor de LexSearch.'];
+  if (isError) return [NETWORK_ERROR_MESSAGE];
   if (!health) return [];
 
   const problems: string[] = [];

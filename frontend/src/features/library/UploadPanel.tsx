@@ -6,7 +6,7 @@ import { Alert, Spinner } from '../../components/ui';
 import { CATEGORIES, CATEGORY_LABELS } from '../../lib/format';
 
 // Photos and scans are read with OCR.
-const ACCEPT = '.pdf,.docx,.txt,.md,.jpg,.jpeg,.png,.webp,.tif,.tiff';
+const ACCEPT = '.pdf,.docx,.doc,.pptx,.svg,.txt,.md,.jpg,.jpeg,.png,.webp,.tif,.tiff';
 
 /** Uploads documents to the library; with `caseId`, to an expediente (they are its pruebas, escritos...). */
 export function UploadPanel({

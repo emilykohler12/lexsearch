@@ -25,8 +25,14 @@ describe('detectFileType', () => {
     expect(() => detectFileType('IMG_1234.heic')).toThrow(/Más compatible/);
   });
 
-  it('explains how to convert legacy .doc files', () => {
-    expect(() => detectFileType('viejo.doc')).toThrow(/\.docx o PDF/);
+  it('accepts Word 97-2003, PowerPoint and SVG', () => {
+    expect(detectFileType('viejo.DOC')).toEqual({ kind: 'doc', mimeType: 'application/msword' });
+    expect(detectFileType('charla.pptx').kind).toBe('pptx');
+    expect(detectFileType('plano.svg')).toEqual({ kind: 'svg', mimeType: 'image/svg+xml' });
+  });
+
+  it('explains how to convert legacy .ppt files', () => {
+    expect(() => detectFileType('viejo.ppt')).toThrow(/\.pptx o PDF/);
   });
 
   it('rejects other formats', () => {
@@ -41,6 +47,15 @@ describe('assertContentMatches', () => {
     expect(() => assertContentMatches('pdf', Buffer.from('%PDF-1.7\n...'), 'a.pdf')).not.toThrow();
     expect(() => assertContentMatches('docx', Buffer.from([0x50, 0x4b, 0x03, 0x04, 0]), 'a.docx')).not.toThrow();
     expect(() => assertContentMatches('text', Buffer.from('Hola, ¿qué tal?'), 'a.txt')).not.toThrow();
+    expect(() => assertContentMatches('pptx', Buffer.from([0x50, 0x4b, 0x03, 0x04, 0]), 'a.pptx')).not.toThrow();
+    expect(() => assertContentMatches('doc', Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0]), 'a.doc')).not.toThrow();
+    expect(() => assertContentMatches('svg', Buffer.from('<?xml version="1.0"?>\n<svg xmlns="http://www.w3.org/2000/svg"></svg>'), 'a.svg')).not.toThrow();
+  });
+
+  it('rejects an SVG, a .doc or a .pptx that is something else', () => {
+    expect(() => assertContentMatches('svg', Buffer.from('<html>no soy un dibujo</html>'), 'a.svg')).toThrow(UnsupportedFileError);
+    expect(() => assertContentMatches('doc', Buffer.from('texto plano'), 'a.doc')).toThrow(UnsupportedFileError);
+    expect(() => assertContentMatches('pptx', Buffer.from('texto plano'), 'a.pptx')).toThrow(UnsupportedFileError);
   });
 
   it('recognizes images by their content', () => {

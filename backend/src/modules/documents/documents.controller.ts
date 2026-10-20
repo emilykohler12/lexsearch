@@ -50,6 +50,8 @@ export class DocumentsController {
       `inline; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
     );
     res.type(file.mimeType);
+    // An SVG can carry scripts: opened on its own it runs with no permissions at all.
+    if (file.mimeType === 'image/svg+xml') res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'");
     res.sendFile(file.absolutePath);
   };
 

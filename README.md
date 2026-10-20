@@ -24,7 +24,7 @@ Las decisiones técnicas y su justificación están en [docs/decisiones.md](docs
 
 ## Qué hace hoy
 
-- **Biblioteca:** subís PDF, Word (.docx), .txt o .md, o fotos y escaneos (JPG, PNG, WEBP, TIFF), eligiendo el tipo (legislación, jurisprudencia, doctrina, modelo propio, escrito, otro). Cada documento se procesa en segundo plano: extracción de texto por página, fragmentación respetando artículos y cláusulas, e indexado. Detecta duplicados por contenido.
+- **Biblioteca:** subís PDF, Word (.docx y el .doc viejo), PowerPoint (.pptx), dibujos SVG con texto, .txt o .md, o fotos y escaneos (JPG, PNG, WEBP, TIFF), eligiendo el tipo (legislación, jurisprudencia, doctrina, modelo propio, escrito, otro). Cada documento se procesa en segundo plano: extracción de texto por página, fragmentación respetando artículos y cláusulas, e indexado. Detecta duplicados por contenido.
 - **OCR (reconocimiento de texto):** los PDF escaneados (o sus páginas escaneadas) y las fotos se leen automáticamente, en tu computadora: las imágenes no se envían a ningún servicio. Los documentos leídos así quedan marcados como «Leído con OCR», porque el texto puede tener errores de lectura.
 - **Búsqueda híbrida:** combina búsqueda *por significado* (vectores) con búsqueda *por palabras exactas* en español sin acentos (útil para "art. 245" o "Ley 20.744"). Filtra por tipo de documento. Solo muestra fragmentos que de verdad se relacionan con la consulta: si buscás algo que no está en tu biblioteca, te lo dice en lugar de mostrar resultados al azar.
 - **Respuestas con IA (Gemini):** redacta la respuesta usando solo los fragmentos recuperados y marca cada afirmación con su fuente. Antes de mostrar una cita, el servidor verifica que la frase exista textualmente en el fragmento. Al hacer clic en una cita ves ese texto resaltado y podés abrir el PDF original en esa página.
@@ -247,6 +247,8 @@ Cada módulo del backend sigue la misma separación de capas: `routes → contro
 **"El puerto 5180 / 4000 / 5433 está en uso".** Otro programa lo está usando (a veces, otro LexSearch que quedó abierto: si es el de la API, la terminal dice «El puerto 4000 ya está en uso» y se cierra). Cerralo, o cambiá el puerto en `.env` (`PORT`, `POSTGRES_PORT` + `DATABASE_URL`) y en `frontend/vite.config.ts`. Con `docker-compose.prod.yml`, el de la web es `WEB_PORT` (por defecto `8080`).
 
 **Un escaneo o una foto queda en "Error: no se pudo reconocer texto".** El OCR no pudo leerlo: suele pasar con fotos borrosas, torcidas o con poca luz. Volvé a sacar la foto (derecha, con buena luz y de cerca) o escaneá el documento. Si tenés la versión digital, siempre es mejor subir esa.
+
+**Un SVG, un Excel o un PowerPoint viejo (.ppt) no se suben.** El SVG solo sirve si tiene texto (un croquis sin texto se exporta a PNG o PDF); de una presentación se lee el texto de cada diapositiva, no las imágenes ni las notas; Excel (.xlsx) no es compatible: exportalo a PDF; el .ppt se guarda como .pptx o PDF.
 
 **Una foto del iPhone (HEIC) es rechazada.** El formato HEIC no es compatible: mandala como JPG (en el iPhone: *Ajustes → Cámara → Formatos → Más compatible*).
 

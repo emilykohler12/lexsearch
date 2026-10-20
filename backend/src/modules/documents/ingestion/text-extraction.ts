@@ -1,6 +1,7 @@
 import mammoth from 'mammoth';
 import { PDFParse } from 'pdf-parse';
 import sharp from 'sharp';
+import { extractDoc, extractPptx, extractSvg } from './office-extraction.js';
 import type { OcrEngine } from '../../ocr/ocr-engine.js';
 import type { SupportedFileKind } from '../file-types.js';
 import type { PageText } from './chunking.js';
@@ -31,10 +32,10 @@ export async function extractText(kind: SupportedFileKind, data: Buffer, ocr: Oc
       ? await extractPdf(data, ocr)
       : kind === 'image'
         ? await extractImage(data, ocr)
-        : { pages: kind === 'docx' ? await extractDocx(data) : extractPlainText(data), ocrPageCount: 0 };
+        : { pages: await extractOffice(kind, data), ocrPageCount: 0 };
 
   const charCount = pages.reduce((sum, p) => sum + p.text.length, 0);
-  const pageCount = kind === 'pdf' || (kind === 'image' && pages.length > 1) ? pages.length : null;
+  const pageCount = kind === 'pdf' || kind === 'pptx' || (kind === 'image' && pages.length > 1) ? pages.length : null;
 
   if (charCount < MIN_CHARS_PER_PDF_PAGE && ocrPageCount > 0) {
     throw new ExtractionError(
@@ -119,6 +120,22 @@ async function recognize(ocr: OcrEngine, image: Buffer): Promise<string> {
     return (await ocr.recognize(image)).text;
   } catch {
     throw new ExtractionError(OCR_UNAVAILABLE);
+  }
+}
+
+/** Word, PowerPoint, drawings and plain text: the text is in the file, no OCR. */
+async function extractOffice(kind: SupportedFileKind, data: Buffer): Promise<PageText[]> {
+  switch (kind) {
+    case 'docx':
+      return extractDocx(data);
+    case 'doc':
+      return extractDoc(data);
+    case 'pptx':
+      return extractPptx(data);
+    case 'svg':
+      return extractSvg(data);
+    default:
+      return extractPlainText(data);
   }
 }
 
