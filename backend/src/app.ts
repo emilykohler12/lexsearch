@@ -43,6 +43,11 @@ import { DraftsController } from './modules/drafts/drafts.controller.js';
 import { DraftsRepository } from './modules/drafts/drafts.repository.js';
 import { draftsRouter } from './modules/drafts/drafts.routes.js';
 import { DraftsService } from './modules/drafts/drafts.service.js';
+import { EstimateAnalysisService } from './modules/estimates/estimate-analysis.service.js';
+import { EstimatesController } from './modules/estimates/estimates.controller.js';
+import { EstimatesRepository } from './modules/estimates/estimates.repository.js';
+import { estimatesRouter } from './modules/estimates/estimates.routes.js';
+import { EstimatesService } from './modules/estimates/estimates.service.js';
 import type { EmbeddingProvider } from './modules/embeddings/embedding-provider.js';
 import { healthRouter } from './modules/health/health.routes.js';
 import { HearingSimulator } from './modules/hearings/hearing-simulator.js';
@@ -210,6 +215,9 @@ export function createApp(deps: AppDeps) {
     logger,
   });
 
+  const estimatesService = new EstimatesService({ repository: new EstimatesRepository(db), cases: casesRepository });
+  const estimateAnalysis = new EstimateAnalysisService({ rag: ragService, cases: casesRepository, llm, interactions: interactionsRepository, logger });
+
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 'loopback');
@@ -282,6 +290,7 @@ export function createApp(deps: AppDeps) {
   app.use('/api/normativa', normativeRouter(new NormativeController(normativeService)));
   app.use('/api/drafts', draftsRouter(new DraftsController(draftsService)));
   app.use('/api/hearings', hearingsRouter(new HearingsController(hearingsService), deps.hearingLimits));
+  app.use('/api/estimates', estimatesRouter(new EstimatesController(estimatesService, estimateAnalysis)));
   app.use('/api/interactions', interactionsRouter(new InteractionsController(interactionsRepository)));
 
   app.use(notFoundHandler);

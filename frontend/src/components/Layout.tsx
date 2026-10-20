@@ -1,6 +1,7 @@
 import {
   BookOpen,
   CalendarClock,
+  Compass,
   FilePenLine,
   FolderKanban,
   Gavel,
@@ -36,6 +37,7 @@ const NAV: NavItem[] = [
   { to: '/normativa', label: 'Normativa', icon: Newspaper, badge: 'normative', secondary: true },
   { to: '/borradores', label: 'Borradores', icon: FilePenLine },
   { to: '/audiencia', label: 'Audiencia', icon: Gavel, secondary: true },
+  { to: '/estimador', label: 'Estimador', icon: Compass, secondary: true },
   { to: '/biblioteca', label: 'Biblioteca', icon: BookOpen, secondary: true },
   { to: '/historial', label: 'Historial', icon: History, secondary: true },
 ];

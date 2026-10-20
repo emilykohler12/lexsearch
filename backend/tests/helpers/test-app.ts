@@ -64,6 +64,7 @@ export async function createTestApp(
       await db.normativeItem.deleteMany();
       await db.normativeTopic.deleteMany();
       await db.normativeRun.deleteMany();
+      await db.outcomeEstimate.deleteMany();
       await db.hearingSimulation.deleteMany(); // its turns go with it
       await db.draft.deleteMany();
       await db.notification.deleteMany();

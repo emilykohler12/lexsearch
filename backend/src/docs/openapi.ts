@@ -19,6 +19,7 @@ import {
 } from '../modules/deadlines/deadlines.schemas.js';
 import { updateDocumentSchema, uploadFieldsSchema } from '../modules/documents/documents.schemas.js';
 import { createDraftSchema, updateDraftSchema } from '../modules/drafts/drafts.schemas.js';
+import { analyzeEstimateSchema, saveEstimateSchema, updateEstimateSchema } from '../modules/estimates/estimates.schemas.js';
 import { createHearingSchema, sendTurnSchema } from '../modules/hearings/hearings.schemas.js';
 import { askBodySchema, searchBodySchema } from '../modules/rag/rag.schemas.js';
 
@@ -69,6 +70,7 @@ export function buildOpenApiDocument() {
       { name: 'Normativa', description: 'Vigía normativo: normas nuevas de los boletines oficiales (Nación y Provincia de Misiones) que tocan las áreas y los temas que el abogado sigue' },
       { name: 'Borradores', description: 'Escritos y contratos redactados por el agente con la biblioteca como referencia' },
       { name: 'Audiencia', description: 'Simulador de audiencia: el abogado practica frente a una IA que hace de juez o de abogado de la contraparte y recibe una devolución' },
+      { name: 'Estimador', description: 'Orientación sobre qué tan favorables son los antecedentes de jurisprudencia de la biblioteca para un caso parecido (no es una predicción)' },
       { name: 'Historial', description: 'Interacciones registradas con los módulos de IA' },
     ],
     paths: {
@@ -464,6 +466,36 @@ export function buildOpenApiDocument() {
             'La devolución resume cómo se desenvolvió el abogado, lo que salió bien, lo que conviene reforzar y qué tener listo. Cada frase citada se busca en lo que dijo el abogado o en su escrito: solo se muestra la que se encuentra. Si ya estaba terminada, devuelve la misma. Hasta 10 por minuto.',
           responses: { 200: { description: 'La práctica terminada, con la devolución' }, 400: errorResponse, 404: errorResponse, 429: errorResponse, 502: errorResponse },
         },
+      },
+      '/api/estimates': {
+        get: { tags: ['Estimador'], summary: 'Listar las estimaciones guardadas (la más reciente primero)', responses: { 200: { description: 'OK' } } },
+        post: {
+          tags: ['Estimador'],
+          summary: 'Guardar una estimación revisada',
+          requestBody: { required: true, ...json(jsonSchema(saveEstimateSchema)) },
+          responses: { 201: { description: 'Estimación guardada' }, 400: errorResponse },
+        },
+      },
+      '/api/estimates/analyze': {
+        post: {
+          tags: ['Estimador'],
+          summary: 'Estimar con IA qué tan favorables son los antecedentes para un caso (propuesta: no guarda nada)',
+          description:
+            'Busca jurisprudencia parecida en la biblioteca, la IA clasifica cada antecedente (comparable o no, a favor o en contra) con una frase del fallo y el servidor verifica cada frase y cuenta. La orientación (favorables, divididos, desfavorables o insuficientes) la calcula el servidor; no hay porcentajes. Con menos de 3 antecedentes comparables y verificados es «insuficiente». Requiere GEMINI_API_KEY. Hasta 10 por minuto.',
+          requestBody: { required: true, ...json(jsonSchema(analyzeEstimateSchema)) },
+          responses: { 200: { description: 'La propuesta, con el aviso que siempre debe mostrarse' }, 400: errorResponse, 429: errorResponse, 502: errorResponse, 503: errorResponse },
+        },
+      },
+      '/api/estimates/{id}': {
+        parameters: [idParam],
+        get: { tags: ['Estimador'], summary: 'Una estimación guardada', responses: { 200: { description: 'OK' }, 404: errorResponse } },
+        patch: {
+          tags: ['Estimador'],
+          summary: 'Editar la nota del abogado',
+          requestBody: { required: true, ...json(jsonSchema(updateEstimateSchema)) },
+          responses: { 200: { description: 'OK' }, 400: errorResponse, 404: errorResponse },
+        },
+        delete: { tags: ['Estimador'], summary: 'Eliminar una estimación', responses: { 204: { description: 'Eliminada' }, 404: errorResponse } },
       },
       '/api/deadlines': {
         get: {

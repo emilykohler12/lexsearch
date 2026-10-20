@@ -1,4 +1,9 @@
 import type {
+  Estimate,
+  EstimateAnalyzeInput,
+  EstimateProposal,
+  EstimateSaveInput,
+  EstimateSummary,
   AppNotification,
   AskResult,
   CalendarOverview,
@@ -316,4 +321,19 @@ export const api = {
   finishHearing: (id: string) => request<{ hearing: Hearing }>(`/hearings/${id}/finish`, { method: 'POST' }).then((r) => r.hearing),
 
   deleteHearing: (id: string) => request<void>(`/hearings/${id}`, { method: 'DELETE' }),
+
+  // Estimador de antecedentes
+  listEstimates: () => request<{ estimates: EstimateSummary[] }>('/estimates').then((r) => r.estimates),
+
+  getEstimate: (id: string) => request<{ estimate: Estimate }>(`/estimates/${id}`).then((r) => r.estimate),
+
+  analyzeEstimate: (data: EstimateAnalyzeInput) =>
+    request<{ proposal: EstimateProposal }>('/estimates/analyze', { method: 'POST', body: json(data) }).then((r) => r.proposal),
+
+  saveEstimate: (data: EstimateSaveInput) => request<{ estimate: Estimate }>('/estimates', { method: 'POST', body: json(data) }).then((r) => r.estimate),
+
+  updateEstimateNote: (id: string, note: string) =>
+    request<{ estimate: Estimate }>(`/estimates/${id}`, { method: 'PATCH', body: json({ note }) }).then((r) => r.estimate),
+
+  deleteEstimate: (id: string) => request<void>(`/estimates/${id}`, { method: 'DELETE' }),
 };

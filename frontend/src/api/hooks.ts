@@ -52,6 +52,8 @@ export const queryKeys = {
   // Everything about the practices of audiencia starts with 'hearings': the list and each practice.
   hearings: ['hearings'] as const,
   hearing: (id: string) => ['hearings', id] as const,
+  estimates: ['estimates'] as const,
+  estimate: (id: string) => ['estimates', id] as const,
 };
 
 export function useHealth() {
@@ -636,6 +638,51 @@ export function useDeleteHearing() {
     onSuccess: (_data, id) => {
       queryClient.removeQueries({ queryKey: queryKeys.hearing(id), exact: true });
       void queryClient.invalidateQueries({ queryKey: queryKeys.hearings, exact: true });
+    },
+  });
+}
+
+export function useEstimates() {
+  return useQuery({ queryKey: queryKeys.estimates, queryFn: api.listEstimates });
+}
+
+export function useEstimate(id: string | undefined) {
+  return useQuery({ queryKey: queryKeys.estimate(id ?? ''), queryFn: () => api.getEstimate(id ?? ''), enabled: Boolean(id) });
+}
+
+export function useAnalyzeEstimate() {
+  return useMutation({ mutationFn: api.analyzeEstimate });
+}
+
+export function useSaveEstimate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.saveEstimate,
+    onSuccess: (estimate) => {
+      queryClient.setQueryData(queryKeys.estimate(estimate.id), estimate);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.estimates, exact: true });
+    },
+  });
+}
+
+export function useUpdateEstimateNote(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (note: string) => api.updateEstimateNote(id, note),
+    onSuccess: (estimate) => {
+      queryClient.setQueryData(queryKeys.estimate(id), estimate);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.estimates, exact: true });
+    },
+  });
+}
+
+export function useDeleteEstimate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.deleteEstimate,
+    onSuccess: (_data, id) => {
+      queryClient.removeQueries({ queryKey: queryKeys.estimate(id), exact: true });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.estimates, exact: true });
     },
   });
 }

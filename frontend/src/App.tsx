@@ -13,6 +13,7 @@ import { ConsultPage } from './pages/ConsultPage';
 import { DeadlineEditorPage } from './pages/DeadlineEditorPage';
 import { DraftDetailPage } from './pages/DraftDetailPage';
 import { DraftsPage } from './pages/DraftsPage';
+import { EstimatorPage } from './pages/EstimatorPage';
 import { HearingPage } from './pages/HearingPage';
 import { HearingsPage } from './pages/HearingsPage';
 import { HistoryPage } from './pages/HistoryPage';
@@ -71,6 +72,7 @@ const router = createBrowserRouter([
       },
       { path: 'borradores', element: <DraftsPage /> },
       { path: 'borradores/:id', element: <DraftDetailPage /> },
+      { path: 'estimador', element: <EstimatorPage /> },
       { path: 'audiencia', element: <HearingsPage /> },
       { path: 'audiencia/:id', element: <HearingPage /> },
       { path: 'biblioteca', element: <LibraryPage /> },

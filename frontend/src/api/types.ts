@@ -671,3 +671,78 @@ export interface HearingInput {
   position?: string;
   focus?: string;
 }
+
+// Estimador de antecedentes
+export type EstimateOrientation = 'FAVORABLE' | 'DIVIDED' | 'UNFAVORABLE' | 'INSUFFICIENT';
+export type EstimateComparable = 'SI' | 'PARCIAL' | 'NO';
+export type EstimateDirection = 'FAVORABLE' | 'DESFAVORABLE' | 'NEUTRO';
+
+export interface EstimateAntecedent {
+  documentId: string;
+  documentTitle: string;
+  pageStart: number | null;
+  comparable: EstimateComparable;
+  direction: EstimateDirection;
+  holding: string;
+  quote: string;
+  quoteVerified: boolean;
+  similarities: string[];
+  differences: string[];
+  counted: boolean;
+}
+
+export interface EstimateResult {
+  orientation: EstimateOrientation;
+  counts: { favorable: number; unfavorable: number; neutral: number; notComparable: number; unverified: number };
+  searched: number;
+  antecedents: EstimateAntecedent[];
+  missingFacts: string[];
+}
+
+/** What the analysis returns: nothing is saved until the lawyer confirms. */
+export interface EstimateProposal {
+  orientation: EstimateOrientation;
+  label: string;
+  notice: string;
+  result: EstimateResult;
+  model: string;
+}
+
+export interface EstimateSummary {
+  id: string;
+  title: string;
+  case: { id: string; title: string } | null;
+  orientation: EstimateOrientation | null;
+  label: string | null;
+  comparable: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Estimate {
+  id: string;
+  title: string;
+  facts: string;
+  claim: string;
+  case: { id: string; title: string } | null;
+  orientation: EstimateOrientation | null;
+  label: string | null;
+  notice: string;
+  result: EstimateResult | null;
+  note: string;
+  model: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EstimateAnalyzeInput {
+  facts: string;
+  claim?: string;
+  caseId?: string;
+}
+
+export interface EstimateSaveInput extends EstimateAnalyzeInput {
+  title?: string;
+  result: EstimateResult;
+  model?: string;
+}

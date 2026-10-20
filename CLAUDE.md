@@ -2,7 +2,7 @@
 
 Sistema de IA para un único abogado (no es multiusuario): biblioteca consultable con RAG, borradores de escritos, fichas de cliente, plazos, expedientes con línea de tiempo, detector de contradicciones, vigía normativo (Boletín Oficial de la Nación y de Misiones) y simulador de audiencia. **Todo lo que genera la IA es una propuesta** que el abogado revisa: nada se guarda ni se da por cierto sin que lo confirme.
 
-Estado: fases 0 a 8 hechas; faltan la 9 (estimador de probabilidad de éxito) y la 10 (hosting, login, HTTPS, backups, anonimización). Hasta la 10 el sistema escucha solo en `127.0.0.1` y no se expone a internet. El porqué de cada decisión técnica está en `docs/decisiones.md` (D1 a D23): leelo antes de cambiar la arquitectura. El resumen de funciones, en `README.md`.
+Estado: fases 0 a 9 hechas; falta la 10 (hosting, login, HTTPS, backups, anonimización). Hasta la 10 el sistema escucha solo en `127.0.0.1` y no se expone a internet. El porqué de cada decisión técnica está en `docs/decisiones.md` (D1 a D24): leelo antes de cambiar la arquitectura. El resumen de funciones, en `README.md`.
 
 ## Stack
 
@@ -14,7 +14,7 @@ Monorepo npm con dos workspaces (Node ≥ 24):
 
 ## Estructura
 
-- `backend/src/modules/<tema>/`: un módulo por tema, con capas `routes → controller → service → repository` (sin lógica de negocio en los controllers) y `*.schemas.ts` con zod para validar entradas y armar las respuestas. Módulos: documents, embeddings, ocr, rag, llm, drafts, clients, cases, deadlines, calendar, notifications, contradictions, normative, hearings, interactions, health.
+- `backend/src/modules/<tema>/`: un módulo por tema, con capas `routes → controller → service → repository` (sin lógica de negocio en los controllers) y `*.schemas.ts` con zod para validar entradas y armar las respuestas. Módulos: documents, embeddings, ocr, rag, llm, drafts, clients, cases, deadlines, calendar, notifications, contradictions, normative, hearings, estimates, interactions, health.
 - `backend/src/app.ts` arma la app con todas las dependencias inyectadas (los tests reemplazan el LLM, los embeddings y el OCR); `server.ts` la arranca. `lib/errors.ts` y `middlewares/error-handler.ts` convierten los errores en respuestas con mensajes seguros para mostrar.
 - `backend/src/docs/openapi.ts`: documentación de la API (Swagger en `/api/docs`); todo endpoint nuevo se documenta ahí.
 - `backend/prompts/<nombre>.v<N>.md`: prompts versionados, registrados en `backend/src/modules/llm/prompts.ts` (`PROMPT_VERSIONS`).
