@@ -19,6 +19,7 @@
     "db:studio": "prisma studio",
     "models:download": "tsx scripts/download-models.ts",
     "auth:hash": "tsx scripts/hash-password.ts",
+    "auth:totp": "tsx scripts/totp-secret.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

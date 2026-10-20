@@ -53,6 +53,13 @@ export function safeErrorMessage(error: unknown): string {
   return error instanceof AppError ? error.message : 'Error interno';
 }
 
+/** The request comes from somewhere it should not (see the same-origin check). */
+export class ForbiddenError extends AppError {
+  constructor(message = 'No tenés permiso para hacer esto') {
+    super(403, 'FORBIDDEN', message);
+  }
+}
+
 /** No session, or it expired: the screen asks for the password again. */
 export class UnauthorizedError extends AppError {
   constructor(message = 'Iniciá sesión para continuar') {

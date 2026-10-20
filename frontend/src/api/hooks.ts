@@ -711,7 +711,7 @@ export function useLogout() {
     mutationFn: api.logout,
     onSettled: () => {
       // Nothing of the lawyer's stays in the memory of the page.
-      queryClient.setQueryData(queryKeys.auth, { authRequired: true, authenticated: false, username: null });
+      queryClient.setQueryData(queryKeys.auth, (old: object | undefined) => ({ totpRequired: false, ...old, authRequired: true, authenticated: false, username: null, security: undefined }));
       queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' });
     },
   });

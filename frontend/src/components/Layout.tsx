@@ -14,8 +14,11 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
+import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router';
 import { NETWORK_ERROR_MESSAGE } from '../api/client';
+import { Alert } from './ui';
+import { plural } from '../lib/format';
 import { useAuth, useHealth, useLogout, useNormativeUnread, useNotifications } from '../api/hooks';
 
 type Badge = 'deadlines' | 'normative';
@@ -51,9 +54,27 @@ export function Layout() {
       <MobileHeader />
       <main className="min-w-0 flex-1">
         <div className="w-full px-4 py-6 sm:px-6 md:py-8 lg:px-10">
+          <SecurityNotice />
           <Outlet />
         </div>
       </main>
+    </div>
+  );
+}
+
+/** After a login: the failed attempts there were at the door since the last time, so she knows if somebody tried. */
+function SecurityNotice() {
+  const { data: auth } = useAuth();
+  const [dismissed, setDismissed] = useState(false);
+  const security = auth?.security;
+  if (!security || security.failedAttempts === 0 || dismissed) return null;
+  const last = security.lastFailedAt ? new Date(security.lastFailedAt).toLocaleString('es-AR') : null;
+  return (
+    <div className="mb-4">
+      <Alert tone="warning" onClose={() => setDismissed(true)}>
+        Desde tu último ingreso hubo {plural(security.failedAttempts, 'intento fallido', 'intentos fallidos')}
+        {last && ` (el último, el ${last}${security.lastFailedIp ? `, desde la dirección ${security.lastFailedIp}` : ''})`}. Si no fuiste vos, cambiá la contraseña.
+      </Alert>
     </div>
   );
 }

@@ -476,10 +476,13 @@ export function buildOpenApiDocument() {
         post: {
           tags: ['Acceso'],
           summary: 'Iniciar sesión',
-          description: 'Abre una sesión y la deja en una cookie HttpOnly con SameSite=Strict. Responde igual a un usuario inexistente que a una contraseña incorrecta. Después de 8 intentos fallidos en 15 minutos hay que esperar.',
+          description: 'Abre una sesión y la deja en una cookie HttpOnly con SameSite=Strict. Si el segundo factor está activado (authenticator: totpRequired en /api/auth/me), también hay que mandar `code`, los 6 dígitos de la app: cada código sirve una vez. Lo que cambia datos (POST, PATCH, DELETE) responde 403 si el navegador dice que viene de otro origen. Responde igual a un usuario inexistente que a una contraseña incorrecta. Después de 8 intentos fallidos en 15 minutos hay que esperar.',
           requestBody: { required: true, ...json(jsonSchema(loginSchema)) },
           responses: { 200: { description: 'Sesión abierta' }, 400: errorResponse, 401: errorResponse, 429: errorResponse },
         },
+      },
+      '/api/auth/activity': {
+        get: { tags: ['Acceso'], summary: 'Los ingresos recientes (buenos, fallidos y frenados), con su dirección', responses: { 200: { description: 'events: los últimos eventos, el más reciente primero' }, 401: errorResponse } },
       },
       '/api/auth/logout': {
         post: { tags: ['Acceso'], summary: 'Cerrar la sesión', responses: { 204: { description: 'Sesión cerrada' } } },

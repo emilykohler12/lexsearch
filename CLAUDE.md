@@ -2,7 +2,7 @@
 
 Sistema de IA para un único abogado (no es multiusuario): biblioteca consultable con RAG, borradores de escritos, fichas de cliente, plazos, expedientes con línea de tiempo, detector de contradicciones, vigía normativo (Boletín Oficial de la Nación y de Misiones) y simulador de audiencia. **Todo lo que genera la IA es una propuesta** que el abogado revisa: nada se guarda ni se da por cierto sin que lo confirme.
 
-Estado: fases 0 a 9 hechas; la 10 está a medias: ya tiene login (usuario y contraseña), HTTPS (Caddy) y copias de seguridad cifradas; faltan elegir el servidor y la anonimización. Hasta entonces el sistema escucha solo en `127.0.0.1` y no se expone a internet. El porqué de cada decisión técnica está en `docs/decisiones.md` (D1 a D26): leelo antes de cambiar la arquitectura. El resumen de funciones, en `README.md`.
+Estado: fases 0 a 9 hechas; la 10 está a medias: ya tiene login (usuario, contraseña y segundo factor), HTTPS (Caddy) y copias de seguridad cifradas; faltan elegir el servidor y la anonimización. Hasta entonces el sistema escucha solo en `127.0.0.1` y no se expone a internet. El porqué de cada decisión técnica está en `docs/decisiones.md` (D1 a D26; la revisión de seguridad, en D26): leelo antes de cambiar la arquitectura. El resumen de funciones, en `README.md`.
 
 ## Stack
 
@@ -34,6 +34,7 @@ Monorepo npm con dos workspaces (Node ≥ 24):
 | `npm test` | Unitarios + de integración (necesita la base en Docker) |
 | `npm run models:download` | Descarga y prueba el modelo local de embeddings |
 | `npm run auth:hash -w backend` | Genera `AUTH_USERNAME` y `AUTH_PASSWORD_HASH` para el `.env` (la contraseña no se guarda) |
+| `npm run auth:totp -w backend` | Genera `AUTH_TOTP_SECRET` (segundo factor) y muestra cómo cargarlo en la app de autenticación |
 
 Solo en el backend (`npm run <script> -w backend`): `test:integration`, `db:deploy` (aplica las migraciones; es lo que hace `npm run db:migrate`), `db:migrate:dev`, `db:generate` (también corre en el `postinstall`) y `db:studio`.
 

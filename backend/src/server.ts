@@ -39,6 +39,7 @@ const auth =
     ? {
         username: env.AUTH_USERNAME,
         passwordHash: env.AUTH_PASSWORD_HASH,
+        totpSecret: env.AUTH_TOTP_SECRET,
         idleHours: env.AUTH_IDLE_HOURS,
         secureCookie: (env.COOKIE_SECURE ?? String(env.NODE_ENV === 'production')) === 'true',
       }

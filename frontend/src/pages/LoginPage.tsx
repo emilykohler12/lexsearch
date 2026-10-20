@@ -1,19 +1,22 @@
 import { LogIn, Scale } from 'lucide-react';
 import { useId, useState, type FormEvent } from 'react';
-import { useLogin } from '../api/hooks';
+import { useAuth, useLogin } from '../api/hooks';
 import { Spinner } from '../components/ui';
 
 /** Shown instead of the app while the lawyer has no open session. */
 export function LoginPage() {
-  const ids = { username: useId(), password: useId() };
+  const ids = { username: useId(), password: useId(), code: useId() };
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
   const login = useLogin();
-  const canSubmit = username.trim() !== '' && password !== '' && !login.isPending;
+  const { data: auth } = useAuth();
+  const totpRequired = auth?.totpRequired ?? false;
+  const canSubmit = username.trim() !== '' && password !== '' && (!totpRequired || /^d{6}$/.test(code)) && !login.isPending;
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
-    if (canSubmit) login.mutate({ username: username.trim(), password });
+    if (canSubmit) login.mutate({ username: username.trim(), password, ...(totpRequired && { code }) });
   };
 
   return (
@@ -59,6 +62,24 @@ export function LoginPage() {
             maxLength={200}
           />
         </div>
+
+        {totpRequired && (
+          <div>
+            <label htmlFor={ids.code} className="label">
+              Código de la app de autenticación
+            </label>
+            <input
+              id={ids.code}
+              className="input tracking-widest"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/D/g, '').slice(0, 6))}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="6 dígitos"
+              maxLength={6}
+            />
+          </div>
+        )}
 
         {login.isError && (
           <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">

@@ -9,7 +9,7 @@ import './index.css';
 // without waiting for the next poll (the health query itself is left alone: it would call itself).
 const onNetworkError = (error: Error, isHealth: boolean) => {
   // The session closed (or the server restarted): the app goes back to the login.
-  if (error instanceof ApiError && error.status === 401) queryClient.setQueryData(['auth'], { authRequired: true, authenticated: false, username: null });
+  if (error instanceof ApiError && error.status === 401) queryClient.setQueryData(['auth'], (old: object | undefined) => ({ totpRequired: false, ...old, authRequired: true, authenticated: false, username: null, security: undefined }));
   if (!isHealth && error instanceof ApiError && error.code === 'NETWORK') void queryClient.invalidateQueries({ queryKey: ['health'] });
 };
 

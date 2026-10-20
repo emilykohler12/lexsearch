@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { parseHash } from '../modules/auth/password.js';
+import { isValidTotpSecret } from '../modules/auth/totp.js';
 import { REPO_ROOT, resolveFromBackend } from './paths.js';
 
 // Single .env at the repo root, shared with docker compose.
@@ -25,6 +26,8 @@ const envSchema = z.object({
   // El hash se genera con `npm run auth:hash -w backend` (ver D26).
   AUTH_USERNAME: z.preprocess(emptyToUndefined, z.string().trim().min(1).optional()),
   AUTH_PASSWORD_HASH: z.preprocess(emptyToUndefined, z.string().optional()),
+  // Segundo factor: la clave compartida con la app de autenticación (se genera con `npm run auth:totp -w backend`).
+  AUTH_TOTP_SECRET: z.preprocess(emptyToUndefined, z.string().optional()),
   // Una sesión se cierra después de tantas horas sin usarla.
   AUTH_IDLE_HOURS: z.coerce.number().positive().max(24 * 30).default(12),
   // La cookie de sesión viaja solo por HTTPS. Por defecto, en producción sí.
@@ -56,12 +59,19 @@ const envSchema = z.object({
 export type Env = z.infer<typeof envSchema>;
 
 /** Problems of the access settings, in Spanish; empty when they are fine. */
-export function authProblems(values: Pick<Env, 'NODE_ENV' | 'AUTH_USERNAME' | 'AUTH_PASSWORD_HASH'>): string[] {
-  const { NODE_ENV, AUTH_USERNAME, AUTH_PASSWORD_HASH } = values;
+export function authProblems(values: Pick<Env, 'NODE_ENV' | 'AUTH_USERNAME' | 'AUTH_PASSWORD_HASH' | 'AUTH_TOTP_SECRET'>): string[] {
+  const { NODE_ENV, AUTH_USERNAME, AUTH_PASSWORD_HASH, AUTH_TOTP_SECRET } = values;
   if (!AUTH_USERNAME !== !AUTH_PASSWORD_HASH) return ['AUTH_USERNAME y AUTH_PASSWORD_HASH van juntos: falta uno de los dos.'];
   // A hash that is not one would make every login fail with no explanation.
   if (AUTH_PASSWORD_HASH && !parseHash(AUTH_PASSWORD_HASH)) {
     return ['AUTH_PASSWORD_HASH no tiene el formato esperado (scrypt:…): generalo de nuevo con `npm run auth:hash -w backend`.'];
+  }
+  if (AUTH_TOTP_SECRET && !isValidTotpSecret(AUTH_TOTP_SECRET)) {
+    return ['AUTH_TOTP_SECRET no es una clave válida (tiene que ser base32 y de al menos 16 caracteres): generala de nuevo con `npm run auth:totp -w backend`.'];
+  }
+  if (AUTH_TOTP_SECRET && !AUTH_USERNAME) return ['AUTH_TOTP_SECRET necesita usuario y contraseña: definí también AUTH_USERNAME y AUTH_PASSWORD_HASH.'];
+  if (NODE_ENV === 'production' && AUTH_USERNAME && !AUTH_TOTP_SECRET) {
+    return ['En producción el ingreso lleva un segundo factor: definí AUTH_TOTP_SECRET (se genera con `npm run auth:totp -w backend`).'];
   }
   if (NODE_ENV === 'production' && !AUTH_USERNAME) {
     return ['En producción hace falta usuario y contraseña: definí AUTH_USERNAME y AUTH_PASSWORD_HASH (se genera con `npm run auth:hash -w backend`).'];

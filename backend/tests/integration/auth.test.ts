@@ -25,13 +25,13 @@ describe('with a password set', () => {
     expect((await request(ctx.app).get('/api/docs/')).status).toBe(401);
     expect((await request(ctx.app).get('/api/health')).status).toBe(200);
     const me = await request(ctx.app).get('/api/auth/me');
-    expect(me.body).toEqual({ authRequired: true, authenticated: false, username: null });
+    expect(me.body).toEqual({ authRequired: true, authenticated: false, username: null, totpRequired: false });
   });
 
   it('logs in, sets a cookie that a page can not read, and lets the lawyer in', async () => {
     const res = await login();
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ authRequired: true, authenticated: true, username: 'abogada' });
+    expect(res.body).toMatchObject({ authRequired: true, authenticated: true, username: 'abogada', totpRequired: false });
     const setCookie = (res.headers['set-cookie'] as unknown as string[])[0]!;
     expect(setCookie).toMatch(/HttpOnly/i);
     expect(setCookie).toMatch(/SameSite=Strict/i);
@@ -96,6 +96,6 @@ describe('behind the proxies of Docker', () => {
 describe('without a password set (development)', () => {
   it('leaves the system open, as before', async () => {
     expect((await request(open.app).get('/api/documents')).status).toBe(200);
-    expect((await request(open.app).get('/api/auth/me')).body).toEqual({ authRequired: false, authenticated: true, username: null });
+    expect((await request(open.app).get('/api/auth/me')).body).toEqual({ authRequired: false, authenticated: true, username: null, totpRequired: false });
   });
 });

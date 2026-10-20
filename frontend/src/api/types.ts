@@ -762,4 +762,8 @@ export interface AuthState {
   authRequired: boolean;
   authenticated: boolean;
   username: string | null;
+  /** Whether the login asks for the code of the authenticator app. */
+  totpRequired: boolean;
+  /** Only in the answer to a login: what failed at the door since the last time. */
+  security?: { failedAttempts: number; lastFailedAt: number | null; lastFailedIp: string | null; previousLoginAt: number | null };
 }

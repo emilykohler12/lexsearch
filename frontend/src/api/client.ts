@@ -333,7 +333,7 @@ export const api = {
   // Acceso
   authState: () => request<AuthState>('/auth/me'),
 
-  login: (data: { username: string; password: string }) => request<AuthState>('/auth/login', { method: 'POST', body: json(data) }),
+  login: (data: { username: string; password: string; code?: string }) => request<AuthState>('/auth/login', { method: 'POST', body: json(data) }),
 
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
 

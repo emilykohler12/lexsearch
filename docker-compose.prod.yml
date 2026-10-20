@@ -4,7 +4,8 @@
 #   docker compose -f docker-compose.prod.yml up -d
 #
 # Lee estas variables del archivo .env de la raíz (el README explica cada una):
-#   obligatorias: POSTGRES_PASSWORD, AUTH_USERNAME y AUTH_PASSWORD_HASH (se generan con `npm run auth:hash -w backend`)
+#   obligatorias: POSTGRES_PASSWORD, AUTH_USERNAME y AUTH_PASSWORD_HASH (se generan con `npm run auth:hash -w backend`),
+#                 AUTH_TOTP_SECRET (el segundo factor: `npm run auth:totp -w backend`)
 #                 y BACKUP_AGE_RECIPIENT (la clave pública de las copias de seguridad: ver el README)
 #   opcionales:   GEMINI_API_KEY, SITE_ADDRESS, TLS_MODE, BIND_ADDRESS, HTTPS_PORT, HTTP_PORT,
 #                 BACKUP_DIR, BACKUP_EVERY_HOURS, BACKUP_KEEP
@@ -42,6 +43,7 @@ services:
       CORS_ORIGIN: https://${SITE_ADDRESS:-localhost}
       AUTH_USERNAME: ${AUTH_USERNAME:?Falta AUTH_USERNAME en el archivo .env (generalo con npm run auth:hash -w backend)}
       AUTH_PASSWORD_HASH: ${AUTH_PASSWORD_HASH:?Falta AUTH_PASSWORD_HASH en el archivo .env (generalo con npm run auth:hash -w backend)}
+      AUTH_TOTP_SECRET: ${AUTH_TOTP_SECRET:?Falta AUTH_TOTP_SECRET en el archivo .env (generalo con npm run auth:totp -w backend)}
       AUTH_IDLE_HOURS: ${AUTH_IDLE_HOURS:-12}
       # Delante de la API hay dos proxies (Caddy y nginx): así ve la dirección real de quien consulta y el límite de
       # intentos de ingreso es por persona y no uno solo para todos.

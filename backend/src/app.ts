@@ -12,6 +12,7 @@ import { AuthService, type AuthConfig } from './modules/auth/auth.service.js';
 import type { FileStorage } from './lib/file-storage.js';
 import type { Logger } from './lib/logger.js';
 import { errorHandler, notFoundHandler } from './middlewares/error-handler.js';
+import { requireSameOrigin } from './middlewares/same-origin.js';
 import { CalendarController } from './modules/calendar/calendar.controller.js';
 import { calendarRouter } from './modules/calendar/calendar.routes.js';
 import { CalendarService } from './modules/calendar/calendar.service.js';
@@ -227,7 +228,7 @@ export function createApp(deps: AppDeps) {
   const estimatesService = new EstimatesService({ repository: new EstimatesRepository(db), cases: casesRepository });
   const estimateAnalysis = new EstimateAnalysisService({ rag: ragService, cases: casesRepository, llm, interactions: interactionsRepository, logger });
 
-  const authController = new AuthController(deps.auth ? new AuthService(deps.auth, deps.now ? () => deps.now!().getTime() : undefined) : null);
+  const authController = new AuthController(deps.auth ? new AuthService(deps.auth, deps.now ? () => deps.now!().getTime() : undefined) : null, logger);
 
   const app = express();
   app.disable('x-powered-by');
@@ -276,6 +277,8 @@ export function createApp(deps: AppDeps) {
   app.use(express.json({ limit: '1mb' }));
 
   app.use('/api/health', healthRouter({ db, embeddings, llm }));
+  // What changes things only accepts requests that come from this system's own pages.
+  app.use('/api', requireSameOrigin(deps.corsOrigin));
   app.use('/api/auth', authRouter(authController, deps.loginAttempts));
   // Everything below needs an open session (the health check and the login above do not).
   app.use('/api', authController.requireSession);

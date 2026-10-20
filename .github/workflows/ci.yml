@@ -101,6 +101,8 @@ jobs:
       # Usuario de la prueba (la contraseña es «clave de prueba del ci 2026»): solo existe en este trabajo.
       AUTH_USERNAME: ci
       AUTH_PASSWORD_HASH: "scrypt:32768:8:1:pPFqhA2pI9FsFzSdWx17hA:ESNZRhJX7J9kqyyh8YpxGiCxQmdXmRG-8TFUg8oHYt8"
+      # Clave del segundo factor de la prueba (la del ejemplo del RFC 6238): el código se calcula abajo.
+      AUTH_TOTP_SECRET: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
       # Puertos del HTTPS de la prueba y carpeta de las copias de seguridad.
       HTTPS_PORT: "8443"
       HTTP_PORT: "8081"
@@ -179,6 +181,8 @@ jobs:
         run: |
           docker compose -f docker-compose.prod.yml up -d --wait --wait-timeout 240
           web=https://localhost:8443
+          # El código de la app de autenticación de la prueba (RFC 6238, SHA-1, 30 segundos); el argumento es el paso de más.
+          code() { node -e "const c=require('crypto');const k=Buffer.from('12345678901234567890');const b=Buffer.alloc(8);b.writeBigUInt64BE(BigInt(Math.floor(Date.now()/30000)+${1:-0}));const h=c.createHmac('sha1',k).update(b).digest();const o=h[19]&15;console.log(String(((h[o]&127)<<24|h[o+1]<<16|h[o+2]<<8|h[o+3])%1000000).padStart(6,'0'))"; }
           # La interfaz responde por HTTPS (con el certificado propio de Caddy), también en las rutas que resuelve React.
           curl -fsSk "$web/" | grep 'id="root"' > /dev/null
           curl -fsSk "$web/plazos" | grep 'id="root"' > /dev/null
@@ -189,7 +193,14 @@ jobs:
           # Sin iniciar sesión no se ve nada; con la contraseña equivocada tampoco.
           test "$(curl -sk -o /dev/null -w '%{http_code}' "$web/api/clients")" = 401
           test "$(curl -sk -o /dev/null -w '%{http_code}' -X POST "$web/api/auth/login" -H 'content-type: application/json' -d '{"username":"ci","password":"incorrecta incorrecta"}')" = 401
-          curl -fsSk -c jar -X POST "$web/api/auth/login" -H 'content-type: application/json' -d '{"username":"ci","password":"clave de prueba del ci 2026"}' | grep '"authenticated":true' > /dev/null
+          # Con la contraseña sola no alcanza: hace falta el código.
+          test "$(curl -sk -o /dev/null -w '%{http_code}' -X POST "$web/api/auth/login" -H 'content-type: application/json' -d '{"username":"ci","password":"clave de prueba del ci 2026"}')" = 401
+          login_code="$(code)"
+          curl -fsSk -c jar -X POST "$web/api/auth/login" -H 'content-type: application/json' -d "{\"username\":\"ci\",\"password\":\"clave de prueba del ci 2026\",\"code\":\"$login_code\"}" | grep '"authenticated":true' > /dev/null
+          # El mismo código no abre dos veces.
+          test "$(curl -sk -o /dev/null -w '%{http_code}' -X POST "$web/api/auth/login" -H 'content-type: application/json' -d "{\"username\":\"ci\",\"password\":\"clave de prueba del ci 2026\",\"code\":\"$login_code\"}")" = 401
+          # Un pedido que cambia cosas y viene de otro sitio se rechaza.
+          test "$(curl -sk -o /dev/null -w '%{http_code}' -X POST "$web/api/auth/logout" -H 'Origin: https://sitio-malicioso.example')" = 403
           # La cookie de sesión no la puede leer una página (HttpOnly) y viaja solo por HTTPS.
           grep '#HttpOnly_' jar | grep -i 'TRUE' > /dev/null
           curl -fsSk -b jar -o /dev/null "$web/api/clients"
