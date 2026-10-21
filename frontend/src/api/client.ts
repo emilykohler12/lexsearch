@@ -98,7 +98,8 @@ export const api = {
     const response = await fetch('/api/health').catch(() => null);
     if (!response) throw new ApiError(0, 'NETWORK', NETWORK_ERROR_MESSAGE);
     const health = (await response.json().catch(() => null)) as Health | null;
-    if (!health) throw new ApiError(response.status, 'NETWORK', NETWORK_ERROR_MESSAGE);
+    // Anything else (a "too many requests" answer, say) is not the status of the system.
+    if (!health?.embeddings) throw new ApiError(response.status, 'NETWORK', NETWORK_ERROR_MESSAGE);
     return health;
   },
 

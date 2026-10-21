@@ -268,7 +268,9 @@ export function createApp(deps: AppDeps) {
     '/api',
     rateLimit({
       windowMs: 15 * 60_000,
-      limit: 1000,
+      // The pages poll (documents being indexed, the bulletin check, the health check): that is normal use, not abuse.
+      limit: 3000,
+      skip: (req) => req.path === '/health',
       standardHeaders: 'draft-8',
       legacyHeaders: false,
       message: { error: { code: 'RATE_LIMIT', message: 'Demasiadas solicitudes. Esperá unos minutos.' } },

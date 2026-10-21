@@ -62,7 +62,7 @@ export function useHealth() {
     queryKey: queryKeys.health,
     queryFn: api.health,
     // Poll faster while the embedding model is still loading.
-    refetchInterval: (query) => (query.state.data?.embeddings.status === 'loading' ? 3_000 : 20_000),
+    refetchInterval: (query) => (query.state.data?.embeddings?.status === 'loading' ? 3_000 : 20_000),
     retry: false,
   });
 }
@@ -74,7 +74,7 @@ export function useDocuments(filters: { caseId?: string } = {}) {
     queryFn: () => api.listDocuments(filters),
     // While something is being indexed, refresh often to show progress.
     refetchInterval: (query) =>
-      query.state.data?.some((d) => d.status === 'PENDING' || d.status === 'PROCESSING') ? 2_000 : false,
+      query.state.data?.some((d) => d?.status === 'PENDING' || d?.status === 'PROCESSING') ? 2_000 : false,
   });
 }
 
