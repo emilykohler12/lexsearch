@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router';
 import { useInteraction, useInteractions } from '../api/hooks';
 import { Alert, PageHeader, Spinner } from '../components/ui';
 import { AnswerView } from '../features/consult/AnswerView';
-import { formatDate, formatSeconds } from '../lib/format';
+import { formatDate } from '../lib/format';
 
 export function HistoryPage() {
   const { id } = useParams();
@@ -42,7 +42,6 @@ function InteractionList() {
                   </p>
                   <p className="mt-0.5 text-xs text-muted">
                     {formatDate(interaction.createdAt)}
-                    {interaction.durationMs !== null && ` · ${formatSeconds(interaction.durationMs)}`}
                     {interaction.status === 'FAILED' && <span className="text-red-700"> · falló</span>}
                   </p>
                 </div>

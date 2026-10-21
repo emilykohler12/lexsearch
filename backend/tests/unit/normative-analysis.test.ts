@@ -4,6 +4,7 @@ import {
   buildExcerpt,
   buildRelevanceRequest,
   condenseText,
+  extractSummary,
   fold,
   headlineOf,
   isAnalyzableCategory,
@@ -74,6 +75,24 @@ describe('headlineOf', () => {
       'Resolución 286/2026 — MINISTERIO DE EJEMPLO (RESOLUCIONES)',
     );
     expect(headlineOf({ kind: 'Aviso Oficial', number: '', organism: 'BANCO', category: 'AVISOS OFICIALES' })).toBe('Aviso Oficial — BANCO (AVISOS OFICIALES)');
+  });
+});
+
+describe('extractSummary', () => {
+  it('takes what the first article orders', () => {
+    expect(extractSummary('VISTO el Expediente 1.\nARTÍCULO 1°.- Apruébase el reglamento de licencias. ARTÍCULO 2°.- Comuníquese.')).toMatch(/^Apruébase el reglamento/);
+  });
+
+  it('falls back to the opening and cuts a long text at a sentence', () => {
+    const text = `VISTO ${'La norma regula algo importante. '.repeat(20)}`;
+    const summary = extractSummary(text);
+    expect(summary.length).toBeLessThanOrEqual(221);
+    expect(summary.startsWith('VISTO La norma')).toBe(true);
+    expect(summary.endsWith('.')).toBe(true);
+  });
+
+  it('is empty when the text was not read', () => {
+    expect(extractSummary('  ')).toBe('');
   });
 });
 

@@ -82,6 +82,24 @@ export function condenseText(full: string, max = STORED_TEXT_CHARS): string {
   return full.slice(0, headChars) + marker + rest.slice(article.index, article.index + (max - headChars - marker.length));
 }
 
+const SUMMARY_CHARS = 220;
+
+/**
+ * A short line about what a norm orders, taken from its own first article (or its opening when it has none).
+ * It's what the lawyer sees for the norms the model didn't summarize; the model's summary replaces it when there is one.
+ */
+export function extractSummary(text: string): string {
+  if (!text.trim()) return '';
+  const article = FIRST_ARTICLE.exec(text);
+  const body = oneLine(article ? text.slice(article.index + article[0].length) : text.slice(Math.max(0, /\bVISTO\b/.exec(text)?.index ?? 0)), 600);
+  if (body.length <= SUMMARY_CHARS) return body;
+  const cut = body.slice(0, SUMMARY_CHARS);
+  const sentenceEnd = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('; '));
+  if (sentenceEnd > 80) return cut.slice(0, sentenceEnd + 1);
+  const wordEnd = cut.lastIndexOf(' ');
+  return `${cut.slice(0, wordEnd > 0 ? wordEnd : SUMMARY_CHARS)}…`;
+}
+
 /** The part of a stored text that is sent to the model. */
 export function buildExcerpt(text: string): string {
   const visto = /\bVISTO\b/.exec(text);

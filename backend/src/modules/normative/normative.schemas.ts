@@ -3,6 +3,7 @@ import type { NormativeTopic } from '../../generated/prisma/client.js';
 import { isValidIsoDate, toIsoDate } from '../calendar/dates.js';
 import { PRACTICE_AREAS } from '../clients/clients.schemas.js';
 import { AREA_PROFILES, type FollowableArea } from './areas.js';
+import { extractSummary } from './normative-analysis.js';
 import type { AlertRow, ItemRow } from './normative.repository.js';
 
 export const ALERT_STATUSES = ['NEW', 'SEEN', 'DISMISSED'] as const;
@@ -92,7 +93,7 @@ export function toItemDto(row: ItemRow, tag: SourceTag) {
     number: row.number,
     reference: row.reference,
     url: row.url,
-    summary: row.summary,
+    summary: row.summary || extractSummary(row.text),
     /** The text was read and checked against the topics (or the norm is of a kind that isn't read). */
     read: row.detailStatus === 'DONE',
     alertCount: row._count.alerts,
@@ -125,7 +126,7 @@ export function toAlertDto(row: AlertRow, affected: Affected | null, tag: Source
       number: row.item.number,
       reference: row.item.reference,
       url: row.item.url,
-      summary: row.item.summary,
+      summary: row.item.summary || extractSummary(row.item.text),
     },
     /** The clients and the open expedientes of the topic's area (null for a topic of its own). */
     affected,

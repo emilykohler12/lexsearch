@@ -30,7 +30,8 @@ export const STATUS_LABELS: Record<DocumentStatus, string> = {
   FAILED: 'Error',
 };
 
-const dateFormatter = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeStyle: 'short' });
+// 24-hour clock (00:00 to 23:59), never a.m./p.m.
+const dateFormatter = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23' });
 const numberFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
 
 export function formatDate(iso: string): string {
@@ -46,10 +47,6 @@ export function formatBytes(bytes: number): string {
 /** plural(1, 'fragmento', 'fragmentos') -> "1 fragmento" */
 export function plural(count: number, singular: string, pluralForm: string): string {
   return `${count} ${count === 1 ? singular : pluralForm}`;
-}
-
-export function formatSeconds(ms: number): string {
-  return `${numberFormatter.format(ms / 1000)} s`;
 }
 
 export function formatPages(pageStart: number | null, pageEnd: number | null): string | null {

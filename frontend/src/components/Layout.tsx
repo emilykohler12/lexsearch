@@ -18,7 +18,7 @@ import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router';
 import { NETWORK_ERROR_MESSAGE } from '../api/client';
 import { Alert } from './ui';
-import { plural } from '../lib/format';
+import { formatDate, plural } from '../lib/format';
 import { useAuth, useHealth, useLogout, useNormativeUnread, useNotifications } from '../api/hooks';
 
 type Badge = 'deadlines' | 'normative';
@@ -35,16 +35,16 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
+  { to: '/biblioteca', label: 'Biblioteca', icon: BookOpen },
   { to: '/', label: 'Consultar', icon: MessageSquareText, end: true },
   { to: '/clientes', label: 'Clientes', icon: Users },
   { to: '/expedientes', label: 'Expedientes', icon: FolderKanban },
   { to: '/plazos', label: 'Plazos', icon: CalendarClock, badge: 'deadlines' },
-  { to: '/normativa', label: 'Normativa', icon: Newspaper, badge: 'normative', secondary: true },
-  { to: '/borradores', label: 'Borradores', icon: FilePenLine },
+  { to: '/borradores', label: 'Borradores', icon: FilePenLine, secondary: true },
   { to: '/audiencia', label: 'Audiencia', icon: Gavel, secondary: true },
   { to: '/estimador', label: 'Estimador', icon: Compass, secondary: true },
-  { to: '/biblioteca', label: 'Biblioteca', icon: BookOpen, secondary: true },
   { to: '/historial', label: 'Historial', icon: History, secondary: true },
+  { to: '/normativa', label: 'Normativa', icon: Newspaper, badge: 'normative', secondary: true },
 ];
 
 export function Layout() {
@@ -68,7 +68,7 @@ function SecurityNotice() {
   const [dismissed, setDismissed] = useState(false);
   const security = auth?.security;
   if (!security || security.failedAttempts === 0 || dismissed) return null;
-  const last = security.lastFailedAt ? new Date(security.lastFailedAt).toLocaleString('es-AR') : null;
+  const last = security.lastFailedAt ? formatDate(new Date(security.lastFailedAt).toISOString()) : null;
   return (
     <div className="mb-4">
       <Alert tone="warning" onClose={() => setDismissed(true)}>
