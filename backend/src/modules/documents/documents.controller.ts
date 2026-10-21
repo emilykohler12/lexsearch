@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { BadRequestError } from '../../lib/errors.js';
 import { parseInput, uuidParamsSchema } from '../../lib/validation.js';
 import {
+  createTextDocumentSchema,
   listDocumentsQuerySchema,
   toDocumentDto,
   updateDocumentSchema,
@@ -28,6 +29,15 @@ export class DocumentsController {
         : { status: outcome.status, originalName: outcome.originalName, document: toDocumentDto(outcome.document) },
     );
     res.status(results.some((r) => r.status === 'created') ? 202 : 200).json({ results });
+  };
+
+  createText = async (req: Request, res: Response) => {
+    const input = parseInput(createTextDocumentSchema, req.body);
+    const outcome = await this.service.createFromText(input);
+    if (outcome.status === 'rejected') throw new BadRequestError(outcome.message);
+    res.status(outcome.status === 'created' ? 202 : 200).json({
+      result: { status: outcome.status, originalName: outcome.originalName, document: toDocumentDto(outcome.document) },
+    });
   };
 
   list = async (req: Request, res: Response) => {

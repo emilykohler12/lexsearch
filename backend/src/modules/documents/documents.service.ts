@@ -52,6 +52,15 @@ export class DocumentsService {
     return outcomes;
   }
 
+  /** Text typed or pasted by the lawyer: stored as a .txt file and indexed like any upload. */
+  async createFromText(input: { title: string; text: string; category: DocumentCategory; caseId?: string | undefined }): Promise<UploadOutcome> {
+    if (input.caseId) await this.assertCaseExists(input.caseId);
+    const { tempPath, sizeBytes } = await this.deps.storage.writeTemp(input.text);
+    const safeTitle = input.title.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+    const originalName = `${safeTitle || 'Texto'}.txt`;
+    return this.uploadOne({ tempPath, originalName, sizeBytes }, input.category, input.title, input.caseId);
+  }
+
   list(filters: DocumentFilters): Promise<Document[]> {
     return this.deps.repository.list(filters);
   }

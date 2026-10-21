@@ -87,6 +87,14 @@ export function useUploadDocuments() {
   });
 }
 
+export function useCreateTextDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.createTextDocument,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.documents }),
+  });
+}
+
 export function useUpdateDocument() {
   const queryClient = useQueryClient();
   return useMutation({

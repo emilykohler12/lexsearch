@@ -23,6 +23,7 @@ export function documentsRouter(controller: DocumentsController, options: { tmpD
   const router = Router();
   router.get('/', controller.list);
   router.post('/', upload.array('files', MAX_FILES_PER_UPLOAD), controller.upload);
+  router.post('/text', controller.createText);
   router.get('/:id', controller.get);
   router.patch('/:id', controller.update);
   router.delete('/:id', controller.delete);

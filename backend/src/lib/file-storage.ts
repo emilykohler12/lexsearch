@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rm } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 /**
@@ -18,6 +18,14 @@ export class FileStorage {
   async init(): Promise<void> {
     await mkdir(path.join(this.root, 'documents'), { recursive: true });
     await mkdir(this.tmpDir, { recursive: true });
+  }
+
+  /** Writes text to a temp file, so it goes through the same path as an uploaded one. */
+  async writeTemp(content: string): Promise<{ tempPath: string; sizeBytes: number }> {
+    const tempPath = path.join(this.tmpDir, `text-${randomUUID()}`);
+    const data = Buffer.from(content, 'utf8');
+    await writeFile(tempPath, data);
+    return { tempPath, sizeBytes: data.length };
   }
 
   /** Moves an uploaded temp file into permanent storage and returns its relative path. */

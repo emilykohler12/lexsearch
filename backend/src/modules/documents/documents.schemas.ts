@@ -22,6 +22,16 @@ export const uploadFieldsSchema = z.object({
   caseId: z.uuid().optional(),
 });
 
+/** A document typed or pasted in instead of uploaded: it is kept as a .txt file. */
+export const createTextDocumentSchema = z.object({
+  title: z.string().trim().min(1, 'Escribí un título').max(300),
+  text: z.string().trim().min(1, 'Escribí el texto del documento').max(300_000, 'El texto es demasiado largo (máximo 300.000 caracteres)'),
+  category: categorySchema.default('OTRO'),
+  caseId: z.uuid().optional(),
+});
+
+export type CreateTextDocumentInput = z.infer<typeof createTextDocumentSchema>;
+
 export const listDocumentsQuerySchema = z.object({
   category: categorySchema.optional(),
   status: statusSchema.optional(),

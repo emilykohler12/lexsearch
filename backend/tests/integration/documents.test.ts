@@ -36,6 +36,29 @@ describe('documents API', () => {
     expect(detail.body.document.chunkCount).toBeGreaterThan(0);
   });
 
+  it('creates a document from typed text and indexes it', async () => {
+    const res = await request(ctx.app)
+      .post('/api/documents/text')
+      .send({ title: 'Nota: criterio de despido', text: 'El despido sin causa genera indemnización por antigüedad.', category: 'DOCTRINA' });
+    expect(res.status).toBe(202);
+    expect(res.body.result).toMatchObject({ status: 'created', originalName: 'Nota criterio de despido.txt' });
+    expect(res.body.result.document).toMatchObject({ title: 'Nota: criterio de despido', category: 'DOCTRINA' });
+
+    await ctx.queue.idle();
+    const detail = await request(ctx.app).get(`/api/documents/${res.body.result.document.id}`);
+    expect(detail.body.document).toMatchObject({ status: 'READY', errorMessage: null });
+    expect(detail.body.document.chunkCount).toBeGreaterThan(0);
+
+    const again = await request(ctx.app).post('/api/documents/text').send({ title: 'Otra', text: 'El despido sin causa genera indemnización por antigüedad.' });
+    expect(again.status).toBe(200);
+    expect(again.body.result.status).toBe('duplicate');
+  });
+
+  it('rejects typed text with no title or no content', async () => {
+    const res = await request(ctx.app).post('/api/documents/text').send({ title: ' ', text: '' });
+    expect(res.status).toBe(400);
+  });
+
   it('detects duplicates by content, not by name', async () => {
     await uploadPdf('original.pdf');
     const res = await uploadPdf('copia con otro nombre.pdf');

@@ -113,6 +113,10 @@ export const api = {
     return request<{ results: UploadResult[] }>('/documents', { method: 'POST', body: form }).then((r) => r.results);
   },
 
+  /** A document typed or pasted in instead of uploaded. */
+  createTextDocument: (data: { title: string; text: string; category: DocumentCategory; caseId?: string }) =>
+    request<{ result: UploadResult }>('/documents/text', { method: 'POST', body: json(data) }).then((r) => r.result),
+
   /** `caseId` links the document to an expediente; null takes it back to the general library. */
   updateDocument: (id: string, data: { title?: string; category?: DocumentCategory; caseId?: string | null }) =>
     request<{ document: LibraryDocument }>(`/documents/${id}`, { method: 'PATCH', body: json(data) }).then(

@@ -17,7 +17,7 @@ import {
   createDeadlinesBatchSchema,
   updateDeadlineSchema,
 } from '../modules/deadlines/deadlines.schemas.js';
-import { updateDocumentSchema, uploadFieldsSchema } from '../modules/documents/documents.schemas.js';
+import { createTextDocumentSchema, updateDocumentSchema, uploadFieldsSchema } from '../modules/documents/documents.schemas.js';
 import { createDraftSchema, updateDraftSchema } from '../modules/drafts/drafts.schemas.js';
 import { loginSchema } from '../modules/auth/auth.controller.js';
 import { analyzeEstimateSchema, saveEstimateSchema, updateEstimateSchema } from '../modules/estimates/estimates.schemas.js';
@@ -114,6 +114,18 @@ export function buildOpenApiDocument() {
             202: { description: 'Resultado por archivo: created | duplicate | rejected' },
             400: errorResponse,
             413: errorResponse,
+          },
+        },
+      },
+      '/api/documents/text': {
+        post: {
+          tags: ['Biblioteca'],
+          summary: 'Agregar un documento escribiendo o pegando el texto (se guarda como .txt y se indexa igual que un archivo)',
+          requestBody: { required: true, ...json(jsonSchema(createTextDocumentSchema)) },
+          responses: {
+            200: { description: 'Ya estaba en la biblioteca (duplicate)' },
+            202: { description: 'Creado (created); la indexación sigue en segundo plano' },
+            400: errorResponse,
           },
         },
       },
